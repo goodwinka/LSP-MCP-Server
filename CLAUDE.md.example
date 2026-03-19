@@ -1,12 +1,12 @@
-# IntelliSense для AI — LSP-MCP Server
+# IntelliSense for AI — LSP-MCP Server
 
-> Скопируйте этот файл в корень вашего проекта как `CLAUDE.md`
-> и замените `__LSP_MCP_SERVER_PATH__` на абсолютный путь к собранному серверу.
-> Или запустите `install.sh` — он предложит добавить это в `~/.claude/CLAUDE.md` автоматически.
+> Copy this file to your project root as `CLAUDE.md`
+> and replace `__LSP_MCP_SERVER_PATH__` with the absolute path to the built server.
+> Or run `install.sh` — it will offer to add this to `~/.claude/CLAUDE.md` automatically.
 
-## Автоматическая настройка MCP
+## Automatic MCP Setup
 
-Если файл `.mcp.json` не существует в корне проекта, создай его:
+If `.mcp.json` does not exist in the project root, create it:
 
 ```json
 {
@@ -19,42 +19,42 @@
 }
 ```
 
-После создания сообщи пользователю: «Файл .mcp.json создан. Перезапусти Claude Code
-(или выполни /mcp restart) чтобы подключить LSP IntelliSense.»
+After creating it, tell the user: "File .mcp.json created. Restart Claude Code
+(or run /mcp restart) to connect LSP IntelliSense."
 
-Если `.mcp.json` уже существует и сервер `intellisense` доступен в списке MCP инструментов —
-используй его инструменты при работе с кодом (см. ниже).
+If `.mcp.json` already exists and the `intellisense` server is available in the MCP tools list —
+use its tools when working with code (see below).
 
-## Workflow при работе с кодом
+## Workflow When Working with Code
 
-### При написании или изменении кода:
-1. **Перед написанием** — используй `get_hover` для проверки сигнатур API и `get_completions` для доступных методов
-2. **После написания** — используй `diagnose_file` для проверки ошибок компилятора/линтера
-3. **При рефакторинге** — используй `find_references` чтобы найти все использования символа
+### When writing or modifying code:
+1. **Before writing** — use `get_hover` to check API signatures and `get_completions` for available methods
+2. **After writing** — use `diagnose_file` to check for compiler/linter errors
+3. **When refactoring** — use `find_references` to find all usages of a symbol
 
-### Доступные инструменты IntelliSense:
-- `diagnose_file` — ошибки и предупреждения для файла на диске
-- `diagnose_code` — проверка кода без сохранения (виртуальный файл)
-- `get_completions` — автодополнение в позиции (функции, методы, переменные)
-- `get_hover` — тип и документация символа
-- `get_definitions` — перейти к определению
-- `find_references` — все использования символа в проекте
-- `get_symbols` — структура файла (классы, функции, переменные)
-- `list_servers` — статус языковых серверов
+### Available IntelliSense tools:
+- `diagnose_file` — errors and warnings for a file on disk
+- `diagnose_code` — check code without saving (virtual file)
+- `get_completions` — autocomplete at a position (functions, methods, variables)
+- `get_hover` — type and documentation for a symbol
+- `get_definitions` — go to definition
+- `find_references` — all usages of a symbol in the project
+- `get_symbols` — file structure (classes, functions, variables)
+- `list_servers` — status of language servers
 
-## C / C++ / Qt-проекты
+## C / C++ / Qt Projects
 
-Для корректной работы clangd нужен `compile_commands.json` или файл `.clangd` в корне:
+For clangd to work correctly, a `compile_commands.json` or `.clangd` file is needed in the root:
 
 ```bash
-# CMake (рекомендуется)
+# CMake (recommended)
 cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
 
-# qmake через Bear
+# qmake via Bear
 bear -- make
 ```
 
-Пример `.clangd` для C++ / Qt проекта (без CMake):
+Example `.clangd` for C++ / Qt project (without CMake):
 ```yaml
 CompileFlags:
   Add:
@@ -66,23 +66,23 @@ CompileFlags:
     - -fPIC
 ```
 
-**Важно для смешанных C/C++ проектов**: флаг `-std=c++17` не совместим с `.c` файлами.
-Для проектов, где есть и `.c` и `.cpp`, используй `compile_commands.json` вместо `.clangd`.
+**Important for mixed C/C++ projects**: the `-std=c++17` flag is incompatible with `.c` files.
+For projects with both `.c` and `.cpp` files, use `compile_commands.json` instead of `.clangd`.
 
-## CUDA-проекты
+## CUDA Projects
 
-Для CUDA C++ файлов (`.cu`, `.cuh`) IntelliSense работает через clangd.
-**Обязательно**: установленный CUDA Toolkit (nvcc должен быть в PATH).
+For CUDA C++ files (`.cu`, `.cuh`) IntelliSense works via clangd.
+**Required**: CUDA Toolkit installed (nvcc must be in PATH).
 
 ```bash
-# Проверить
+# Verify
 nvcc --version
 
-# compile_commands.json для CUDA
+# compile_commands.json for CUDA
 cmake -DCMAKE_CUDA_COMPILER=nvcc -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
 ```
 
-Или создай `.clangd` конфиг:
+Or create a `.clangd` config:
 ```yaml
 CompileFlags:
   Add:
@@ -92,38 +92,38 @@ CompileFlags:
     - -std=c++17
 ```
 
-Без CUDA Toolkit clangd вернёт ошибки типа `Cannot find CUDA installation` — это не баг сервера,
-нужно установить CUDA Toolkit.
+Without CUDA Toolkit, clangd will return errors like `Cannot find CUDA installation` — this is not a server bug,
+you need to install CUDA Toolkit.
 
-Для Python CUDA (CuPy, Numba, PyCUDA) — используй `diagnose_file` на `.py` файлах как обычно,
-pyright поддерживает их автоматически.
+For Python CUDA (CuPy, Numba, PyCUDA) — use `diagnose_file` on `.py` files as usual,
+pyright supports them automatically.
 
-## Python-проекты
+## Python Projects
 
-Pyright автоматически подхватывает `pyrightconfig.json` и `pyproject.toml`.
-Для виртуальных окружений убедись, что `venv` активировано или путь задан в конфиге.
+Pyright automatically picks up `pyrightconfig.json` and `pyproject.toml`.
+For virtual environments, make sure `venv` is activated or the path is set in the config.
 
-## Примеры запросов
+## Example Queries
 
 ```
-Проверь файл src/kernel.cu на ошибки
+Check src/kernel.cu for errors
   → diagnose_file("src/kernel.cu")
 
-Какие методы есть у thrust::device_vector?
-  → get_completions на .cu файле с thrust::device_vector<float> v; v.
+What methods does thrust::device_vector have?
+  → get_completions on a .cu file with thrust::device_vector<float> v; v.
 
-Покажи сигнатуру cudaMalloc
-  → get_hover на .cu файле
+Show the signature of cudaMalloc
+  → get_hover on a .cu file
 
-Проверь models/train.py на ошибки (CuPy/Numba)
+Check models/train.py for errors (CuPy/Numba)
   → diagnose_file("models/train.py")
 
-Проверь код до сохранения
-  → diagnose_code("widget.cpp", "<код>")
+Check code before saving
+  → diagnose_code("widget.cpp", "<code>")
 
-Покажи структуру файла
+Show file structure
   → get_symbols("src/mainwindow.cpp")
 
-Какие серверы запущены?
+What servers are running?
   → list_servers
 ```

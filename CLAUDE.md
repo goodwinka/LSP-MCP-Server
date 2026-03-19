@@ -1,46 +1,46 @@
-# LSP-MCP Server — Руководство для разработки
+# LSP-MCP Server — Development Guide
 
-## Сборка и запуск
+## Build & Run
 
 ```bash
-npm install          # установка зависимостей
-npm run build        # компиляция TypeScript → dist/
-npm run dev          # запуск через tsx (без сборки)
-npm start            # запуск собранного dist/index.js
+npm install          # install dependencies
+npm run build        # compile TypeScript → dist/
+npm run dev          # run via tsx (no build needed)
+npm start            # run built dist/index.js
 ```
 
-## Структура проекта
+## Project Structure
 
 ```
 src/
-├── index.ts              — точка входа, CLI, MCP-инструменты
-├── server-pool.ts        — пул LSP-серверов (lazy start, один на язык)
-├── lsp-client.ts         — LSP-клиент (JSON-RPC, управление документами)
-├── language-registry.ts  — реестр языков и LSP-серверов
-└── formatters.ts         — форматирование LSP-ответов в текст
+├── index.ts              — entry point, CLI, MCP tools
+├── server-pool.ts        — LSP server pool (lazy start, one per language)
+├── lsp-client.ts         — LSP client (JSON-RPC, document management)
+├── language-registry.ts  — language and LSP server registry
+└── formatters.ts         — formatting LSP responses as text
 ```
 
-## Соглашения
+## Conventions
 
-- TypeScript strict mode, ES2022, ESM модули (Node16 module resolution)
-- Все импорты с расширением `.js` (ESM requirement)
-- Ошибки типизируются как `unknown` в catch: `catch (e: unknown)`
-- Используется `@modelcontextprotocol/sdk` для MCP
-- Используется `vscode-languageserver-protocol` для LSP типов
+- TypeScript strict mode, ES2022, ESM modules (Node16 module resolution)
+- All imports use `.js` extension (ESM requirement)
+- Errors typed as `unknown` in catch: `catch (e: unknown)`
+- Uses `@modelcontextprotocol/sdk` for MCP
+- Uses `vscode-languageserver-protocol` for LSP types
 
-## Добавление нового языка
+## Adding a New Language
 
-1. Добавить запись в `BUILTIN_SERVERS` в `src/language-registry.ts`
-2. Обновить описания инструментов в `src/index.ts` (help, diagnose_file)
-3. Обновить таблицу в `README.md`
-4. Собрать: `npm run build`
+1. Add an entry to `BUILTIN_SERVERS` in `src/language-registry.ts`
+2. Update tool descriptions in `src/index.ts` (help, diagnose_file)
+3. Update the table in `README.md`
+4. Build: `npm run build`
 
-## Тестирование
+## Testing
 
 ```bash
-# Проверить что собирается
+# Verify it builds
 npm run build
 
-# Запуск с отладкой
+# Run with debug output
 LSP_MCP_DEBUG=1 node dist/index.js --project /path/to/test/project
 ```
