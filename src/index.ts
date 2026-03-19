@@ -57,7 +57,7 @@ function parseArgs() {
 LSP-MCP Server — Universal IntelliSense for LLMs
 
 Provides diagnostics, completions, hover, definitions, references, and symbols
-for C/C++, Python, TypeScript/JavaScript, Go, Rust, Lua, Bash, Java, Kotlin,
+for C/C++/CUDA, Python, TypeScript/JavaScript, Go, Rust, Lua, Bash, Java, Kotlin,
 Zig, CSS, HTML, JSON, and more — auto-detected by file extension.
 
 Options:
@@ -108,7 +108,7 @@ async function main() {
     "diagnose_file",
     `Get all compiler/linter errors, warnings, and hints for a source file.
 Works with ANY supported language — the correct language server is auto-selected by file extension.
-Supported: C/C++ (clangd), Python (pyright/pylsp), TypeScript/JS, Go, Rust, Java, Kotlin, Lua, Bash, Zig, CSS, HTML, JSON.
+Supported: C/C++/CUDA (clangd), Python (pyright/pylsp), TypeScript/JS, Go, Rust, Java, Kotlin, Lua, Bash, Zig, CSS, HTML, JSON.
 Use BEFORE writing code to check the current state, and AFTER editing to verify your changes.`,
     {
       file: z.string().describe("Path to the file relative to project root, e.g. 'src/main.cpp' or 'app/views.py'"),
