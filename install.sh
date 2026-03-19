@@ -185,7 +185,60 @@ if [[ ! "$gen_answer" =~ ^[Nn]$ ]]; then
     fi
 fi
 
-# ── 6. Итоги ─────────────────────────────────────────────────
+# ── 6. Глобальный CLAUDE.md ───────────────────────────────────
+
+GLOBAL_CLAUDE_DIR="$HOME/.claude"
+GLOBAL_CLAUDE_MD="$GLOBAL_CLAUDE_DIR/CLAUDE.md"
+LSP_MARKER="# LSP-MCP IntelliSense"
+
+echo ""
+echo -e "${BOLD}── Глобальный CLAUDE.md ──${NC}"
+echo ""
+
+if grep -qF "$LSP_MARKER" "$GLOBAL_CLAUDE_MD" 2>/dev/null; then
+    ok "LSP-MCP инструкции уже есть в $GLOBAL_CLAUDE_MD"
+else
+    read -rp "Добавить автозапуск LSP IntelliSense в глобальный CLAUDE.md (~/.claude/CLAUDE.md)? [Y/n] " claude_answer
+    if [[ ! "$claude_answer" =~ ^[Nn]$ ]]; then
+        mkdir -p "$GLOBAL_CLAUDE_DIR"
+        cat >> "$GLOBAL_CLAUDE_MD" << CLAUDEEOF
+
+$LSP_MARKER (auto-added by install.sh)
+
+Если в текущем проекте нет файла \`.mcp.json\` — создай его автоматически
+в корне проекта (там, где запущен Claude Code):
+
+\`\`\`json
+{
+  "mcpServers": {
+    "intellisense": {
+      "command": "node",
+      "args": ["$DIST_INDEX", "--project", "."]
+    }
+  }
+}
+\`\`\`
+
+После создания скажи пользователю: «Файл .mcp.json создан. Перезапусти Claude Code
+(или выполни /mcp restart) чтобы подключить LSP IntelliSense.»
+
+Если \`.mcp.json\` уже существует и сервер \`intellisense\` доступен — используй его
+инструменты при работе с кодом:
+- \`diagnose_file\` — перед коммитом и после изменений
+- \`get_hover\` — для проверки сигнатур функций
+- \`get_completions\` — для изучения API
+
+CLAUDEEOF
+        ok "Добавлено в $GLOBAL_CLAUDE_MD"
+        info "При следующем запуске Claude Code в любом проекте сервер настроится автоматически"
+    else
+        info "Пропускаю. Скопируйте CLAUDE.md.example вручную:"
+        info "  cat '$SCRIPT_DIR/CLAUDE.md.example' >> ~/.claude/CLAUDE.md"
+        info "  (замените __LSP_MCP_SERVER_PATH__ на: $SCRIPT_DIR)"
+    fi
+fi
+
+# ── 7. Итоги ─────────────────────────────────────────────────
 
 echo ""
 echo -e "${BOLD}═══ Готово! ═══${NC}"
@@ -193,8 +246,8 @@ echo ""
 echo "Сервер собран: $DIST_INDEX"
 echo ""
 echo "Использование:"
-echo "  1. Скопируйте CLAUDE.md.example в корень вашего проекта как CLAUDE.md"
-echo "  2. Или добавьте .mcp.json в проект (см. README.md)"
+echo "  1. Глобальный CLAUDE.md (~/.claude/CLAUDE.md) — автозапуск в каждом проекте"
+echo "  2. Или .mcp.json в корне проекта (создаётся install.sh или вручную)"
 echo "  3. Запустите Claude Code в директории проекта"
 echo ""
 echo "Ручной запуск:"
