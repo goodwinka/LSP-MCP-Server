@@ -6,9 +6,9 @@ MCP-сервер, который автоматически подключает
 
 | Язык | LSP-сервер | Расширения |
 |---|---|---|
-| C / C++ / Qt / CUDA | clangd | .c .h .cpp .cxx .cc .hpp .cu .cuh |
+| C / C++ / Qt / CUDA | clangd | .c .h .cpp .cxx .cc .hpp .hxx .hh .ipp .cu .cuh |
 | Python | pyright / pylsp | .py .pyi |
-| TypeScript / JavaScript | typescript-language-server | .ts .tsx .js .jsx |
+| TypeScript / JavaScript | typescript-language-server | .ts .tsx .js .jsx .mjs .cjs |
 | Go | gopls | .go |
 | Rust | rust-analyzer | .rs |
 | Java | jdtls | .java |
@@ -16,7 +16,7 @@ MCP-сервер, который автоматически подключает
 | Zig | zls | .zig |
 | Lua | lua-language-server | .lua |
 | Bash / Shell | bash-language-server | .sh .bash .zsh |
-| CSS / SCSS | vscode-css-languageserver | .css .scss .less |
+| CSS / SCSS / LESS | vscode-css-languageserver | .css .scss .less |
 | HTML | vscode-html-languageserver | .html .htm |
 | JSON | vscode-json-languageserver | .json .jsonc |
 | CMake | cmake-language-server | .cmake |
@@ -46,7 +46,9 @@ LLM может:
 ```bash
 cd lsp-mcp-server
 npm install
-npm run build
+npm run build      # компиляция TypeScript → dist/
+# или для разработки без сборки:
+npm run dev        # запуск через tsx напрямую
 ```
 
 ### 2. Установить нужные LSP-серверы
@@ -74,6 +76,26 @@ npm install -g bash-language-server
 
 # CSS / HTML / JSON
 npm install -g vscode-langservers-extracted
+
+# CMake
+pip install cmake-language-server
+# Примечание: работает только с файлами .cmake, не с CMakeLists.txt напрямую
+
+# Lua
+brew install lua-language-server         # macOS
+# Linux: скачать с https://github.com/LuaLS/lua-language-server/releases
+
+# Java (Eclipse JDT LS)
+# Скачать и установить: https://github.com/eclipse-jdtls/eclipse.jdt.ls/releases
+# После установки убедитесь, что команда `jdtls` доступна в PATH
+
+# Kotlin
+# Скачать с https://github.com/fwcd/kotlin-language-server/releases
+# После установки убедитесь, что команда `kotlin-language-server` доступна в PATH
+
+# Zig
+# Скачать с https://github.com/zigtools/zls/releases
+# После установки убедитесь, что команда `zls` доступна в PATH
 ```
 
 Посмотреть, что установлено, можно инструментом `list_servers`.
@@ -237,7 +259,7 @@ Pyright автоматически подхватывает `pyrightconfig.json`
 
 ```
 --project, -p <path>    Путь к корню проекта (обязательно)
---help, -h              Справка
+--help, -h              Показать справку и выйти
 ```
 
 ## Переменные окружения
@@ -246,6 +268,28 @@ Pyright автоматически подхватывает `pyrightconfig.json`
 |---|---|
 | `LSP_PROJECT_ROOT` | Путь к проекту (если не задан --project) |
 | `LSP_MCP_DEBUG=1` | Выводить stderr языковых серверов |
+
+## Устранение проблем
+
+### Какой сервер выбран для моего файла?
+
+Используйте инструмент `list_servers` — он покажет все серверы, их статус и поддерживаемые расширения. Сервер выбирается автоматически по расширению файла.
+
+### Если установлены оба pyright и pylsp
+
+Первым в реестре стоит **pyright** — он и будет использоваться для `.py` файлов. Если нужен pylsp, удалите или переименуйте `pyright-langserver`.
+
+### CMakeLists.txt не диагностируется
+
+`cmake-language-server` подключается только к файлам с расширением `.cmake`. Для `CMakeLists.txt` поддержка пока не реализована — это ограничение текущей архитектуры определения языка по расширению.
+
+### Сервер запустился, но нет диагностики
+
+Включите отладочный вывод (`LSP_MCP_DEBUG=1`) и проверьте stderr языкового сервера. Убедитесь, что для C++ проекта создан `compile_commands.json` или файл `.clangd`.
+
+### Ошибка "path is outside project root"
+
+Все пути к файлам должны быть **относительно корня проекта**, указанного в `--project`. Абсолютные пути не допускаются.
 
 ## Лицензия
 
