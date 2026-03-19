@@ -1,12 +1,12 @@
 # LSP-MCP Server — Universal IntelliSense для LLM
 
-MCP-сервер, который автоматически подключает нужный **Language Server** (clangd, pyright, tsserver, gopls, rust-analyzer…) и предоставляет Claude Code доступ к полноценному IntelliSense для **любого языка**: диагностика ошибок, автодополнение, информация о типах, навигация по коду.
+MCP-сервер, который автоматически подключает нужный **Language Server** (clangd, pyright, tsserver, gopls, rust-analyzer…) и предоставляет Claude Code доступ к полноценному IntelliSense для **любого языка**, включая **CUDA**: диагностика ошибок, автодополнение, информация о типах, навигация по коду.
 
 ## Поддерживаемые языки
 
 | Язык | LSP-сервер | Расширения |
 |---|---|---|
-| C / C++ / Qt | clangd | .c .h .cpp .cxx .cc .hpp |
+| C / C++ / Qt / CUDA | clangd | .c .h .cpp .cxx .cc .hpp .cu .cuh |
 | Python | pyright / pylsp | .py .pyi |
 | TypeScript / JavaScript | typescript-language-server | .ts .tsx .js .jsx |
 | Go | gopls | .go |
@@ -181,6 +181,53 @@ CompileFlags:
     - -fPIC
 EOF
 ```
+
+## Советы для CUDA
+
+### CUDA C++ (.cu, .cuh)
+
+clangd поддерживает CUDA нативно (основан на clang). Для корректной работы нужен CUDA Toolkit:
+
+```bash
+# Проверить установку
+nvcc --version
+```
+
+Для лучшей работы IntelliSense создайте `compile_commands.json`:
+
+```bash
+# CMake с CUDA
+cmake -DCMAKE_CUDA_COMPILER=nvcc -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
+```
+
+Или создайте файл `.clangd` в корне проекта:
+
+```yaml
+CompileFlags:
+  Add:
+    - --cuda-gpu-arch=sm_75
+    - --cuda-path=/usr/local/cuda
+    - -I/usr/local/cuda/include
+    - -std=c++17
+```
+
+### CUDA Python (CuPy, Numba, PyCUDA)
+
+Python-библиотеки для CUDA работают через обычный pyright — отдельная настройка не нужна.
+Для улучшенной проверки типов установите стабы:
+
+```bash
+# CuPy — стабы включены в пакет
+pip install cupy-cuda12x    # или cupy-cuda11x
+
+# Numba
+pip install numba
+
+# PyCUDA
+pip install pycuda
+```
+
+Pyright автоматически подхватит типы из установленных пакетов.
 
 ## Советы для Python
 

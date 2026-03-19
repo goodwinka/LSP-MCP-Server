@@ -37,7 +37,7 @@ export const BUILTIN_SERVERS: LspServerConfig[] = [
       "--header-insertion=iwyu",
       "--pch-storage=memory",
     ],
-    extensions: [".c", ".h", ".cpp", ".cxx", ".cc", ".hpp", ".hxx", ".hh", ".ipp"],
+    extensions: [".c", ".h", ".cpp", ".cxx", ".cc", ".hpp", ".hxx", ".hh", ".ipp", ".cu", ".cuh"],
     languageIds: {
       ".c": "c",
       ".h": "cpp",
@@ -48,6 +48,8 @@ export const BUILTIN_SERVERS: LspServerConfig[] = [
       ".hxx": "cpp",
       ".hh": "cpp",
       ".ipp": "cpp",
+      ".cu": "cuda-cpp",
+      ".cuh": "cuda-cpp",
     },
     installHint: "sudo apt install clangd  |  brew install llvm",
   },
