@@ -10,7 +10,8 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsx src/index.ts"
+    "dev": "tsx src/index.ts",
+    "test:cpp-qt": "node tests/test-cpp-qt.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
