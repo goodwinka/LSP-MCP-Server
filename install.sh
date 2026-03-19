@@ -201,40 +201,12 @@ else
     read -rp "Add LSP IntelliSense auto-setup to global CLAUDE.md (~/.claude/CLAUDE.md)? [Y/n] " claude_answer
     if [[ ! "$claude_answer" =~ ^[Nn]$ ]]; then
         mkdir -p "$GLOBAL_CLAUDE_DIR"
-        cat >> "$GLOBAL_CLAUDE_MD" << CLAUDEEOF
-
-$LSP_MARKER (auto-added by install.sh)
-
-If the current project does not have a \`.mcp.json\` file, create it automatically
-in the project root (where Claude Code is running):
-
-\`\`\`json
-{
-  "mcpServers": {
-    "intellisense": {
-      "command": "node",
-      "args": ["$DIST_INDEX", "--project", "."]
-    }
-  }
-}
-\`\`\`
-
-After creating it, tell the user: "File .mcp.json created. Restart Claude Code
-(or run /mcp restart) to connect LSP IntelliSense."
-
-If \`.mcp.json\` already exists and the \`intellisense\` server is available — use its
-tools when working with code:
-- \`diagnose_file\` — before committing and after making changes
-- \`get_hover\` — to verify function signatures
-- \`get_completions\` — to explore APIs
-
-CLAUDEEOF
+        { echo ""; sed "s|__LSP_MCP_SERVER_PATH__|$SCRIPT_DIR|g" "$SCRIPT_DIR/CLAUDE.md.example"; echo ""; } >> "$GLOBAL_CLAUDE_MD"
         ok "Added to $GLOBAL_CLAUDE_MD"
         info "On next Claude Code launch in any project, the server will be configured automatically"
     else
-        info "Skipped. Copy CLAUDE.md.example manually:"
-        info "  cat '$SCRIPT_DIR/CLAUDE.md.example' >> ~/.claude/CLAUDE.md"
-        info "  (replace __LSP_MCP_SERVER_PATH__ with: $SCRIPT_DIR)"
+        info "Skipped. To add manually:"
+        info "  sed \"s|__LSP_MCP_SERVER_PATH__|$SCRIPT_DIR|g\" '$SCRIPT_DIR/CLAUDE.md.example' >> ~/.claude/CLAUDE.md"
     fi
 fi
 

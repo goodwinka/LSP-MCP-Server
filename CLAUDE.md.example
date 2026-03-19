@@ -1,8 +1,4 @@
-# IntelliSense for AI — LSP-MCP Server
-
-> Copy this file to your project root as `CLAUDE.md`
-> and replace `__LSP_MCP_SERVER_PATH__` with the absolute path to the built server.
-> Or run `install.sh` — it will offer to add this to `~/.claude/CLAUDE.md` automatically.
+# LSP-MCP IntelliSense
 
 ## Automatic MCP Setup
 
