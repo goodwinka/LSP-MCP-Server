@@ -7,7 +7,7 @@
 
 import { extname } from "node:path";
 import { LspClient } from "./lsp-client.js";
-import { LanguageRegistry, type LspServerConfig } from "./language-registry.js";
+import { LanguageRegistry } from "./language-registry.js";
 
 export class ServerPool {
   private clients = new Map<string, LspClient>(); // keyed by server name
@@ -48,14 +48,6 @@ export class ServerPool {
       await client.start();
     }
     return client;
-  }
-
-  /** Get server info for a file extension (without starting it) */
-  getServerInfo(filePath: string): { config: LspServerConfig; available: boolean } | null {
-    const ext = extname(filePath).toLowerCase();
-    const config = this.registry.findServer(ext);
-    if (!config) return null;
-    return { config, available: this.registry.isAvailable(config) };
   }
 
   /** List all running servers */
