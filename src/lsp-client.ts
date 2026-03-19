@@ -35,6 +35,8 @@ import {
   type ProtocolConnection,
   ShutdownRequest,
   ExitNotification,
+  LogMessageNotification,
+  ShowMessageNotification,
 } from "vscode-languageserver-protocol";
 import type { LspServerConfig } from "./language-registry.js";
 
@@ -116,11 +118,34 @@ export class LspClient {
       this.diagnosticsStore.set(params.uri, params.diagnostics);
     });
 
+    // Handle server-to-client requests that LSP servers may send.
+    // workspace/configuration: must return an array of same length as params.items
+    this.connection.onRequest("workspace/configuration", (params: { items?: unknown[] }) => {
+      const count = params?.items?.length ?? 0;
+      return Array(count).fill(null);
+    });
+    this.connection.onRequest("workspace/applyEdit", () => ({ applied: false }));
+    this.connection.onRequest("window/showMessageRequest", () => null);
+
+    // Handle server-to-client notifications (log in debug mode)
+    this.connection.onNotification(LogMessageNotification.type, (params) => {
+      if (process.env.LSP_MCP_DEBUG) {
+        process.stderr.write(`[${this.config.name}] LOG: ${params.message}\n`);
+      }
+    });
+    this.connection.onNotification(ShowMessageNotification.type, (params) => {
+      if (process.env.LSP_MCP_DEBUG) {
+        process.stderr.write(`[${this.config.name}] MSG: ${params.message}\n`);
+      }
+    });
+
     this.connection.listen();
 
+    const rootUri = `file://${this.projectRoot}`;
     const initParams: InitializeParams = {
       processId: process.pid ?? null,
-      rootUri: `file://${this.projectRoot}`,
+      rootUri,
+      workspaceFolders: [{ uri: rootUri, name: "project" }],
       capabilities: {
         textDocument: {
           completion: {
@@ -131,6 +156,13 @@ export class LspClient {
           },
           hover: { contentFormat: ["plaintext", "markdown"] },
           synchronization: { didSave: true, dynamicRegistration: false },
+          publishDiagnostics: { relatedInformation: true },
+        },
+        workspace: {
+          // Do NOT advertise configuration capability — it causes some servers
+          // (e.g. pyright) to request project-specific settings that we can't provide,
+          // which may change their diagnostic behaviour in unexpected ways.
+          // We still handle workspace/configuration requests to prevent hanging.
         },
       },
     };

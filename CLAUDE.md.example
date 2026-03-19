@@ -2,6 +2,7 @@
 
 > Скопируйте этот файл в корень вашего проекта как `CLAUDE.md`
 > и замените `__LSP_MCP_SERVER_PATH__` на абсолютный путь к собранному серверу.
+> Или запустите `install.sh` — он предложит добавить это в `~/.claude/CLAUDE.md` автоматически.
 
 ## Автоматическая настройка MCP
 
@@ -18,7 +19,11 @@
 }
 ```
 
-После создания `.mcp.json` перезапусти MCP-серверы (`/mcp` → restart).
+После создания сообщи пользователю: «Файл .mcp.json создан. Перезапусти Claude Code
+(или выполни /mcp restart) чтобы подключить LSP IntelliSense.»
+
+Если `.mcp.json` уже существует и сервер `intellisense` доступен в списке MCP инструментов —
+используй его инструменты при работе с кодом (см. ниже).
 
 ## Workflow при работе с кодом
 
@@ -37,26 +42,66 @@
 - `get_symbols` — структура файла (классы, функции, переменные)
 - `list_servers` — статус языковых серверов
 
+## C / C++ / Qt-проекты
+
+Для корректной работы clangd нужен `compile_commands.json` или файл `.clangd` в корне:
+
+```bash
+# CMake (рекомендуется)
+cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
+
+# qmake через Bear
+bear -- make
+```
+
+Пример `.clangd` для C++ / Qt проекта (без CMake):
+```yaml
+CompileFlags:
+  Add:
+    - -std=c++17
+    - -I/usr/include/qt6
+    - -I/usr/include/qt6/QtCore
+    - -I/usr/include/qt6/QtWidgets
+    - -I/usr/include/qt6/QtGui
+    - -fPIC
+```
+
+**Важно для смешанных C/C++ проектов**: флаг `-std=c++17` не совместим с `.c` файлами.
+Для проектов, где есть и `.c` и `.cpp`, используй `compile_commands.json` вместо `.clangd`.
+
 ## CUDA-проекты
 
 Для CUDA C++ файлов (`.cu`, `.cuh`) IntelliSense работает через clangd.
-Убедись, что в проекте есть `compile_commands.json` для CUDA:
+**Обязательно**: установленный CUDA Toolkit (nvcc должен быть в PATH).
 
 ```bash
+# Проверить
+nvcc --version
+
+# compile_commands.json для CUDA
 cmake -DCMAKE_CUDA_COMPILER=nvcc -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
 ```
 
 Или создай `.clangd` конфиг:
-
 ```yaml
 CompileFlags:
   Add:
     - --cuda-gpu-arch=sm_75
     - --cuda-path=/usr/local/cuda
     - -I/usr/local/cuda/include
+    - -std=c++17
 ```
 
-Для Python CUDA (CuPy, Numba, PyCUDA) — используй `diagnose_file` на `.py` файлах как обычно, pyright поддерживает их автоматически.
+Без CUDA Toolkit clangd вернёт ошибки типа `Cannot find CUDA installation` — это не баг сервера,
+нужно установить CUDA Toolkit.
+
+Для Python CUDA (CuPy, Numba, PyCUDA) — используй `diagnose_file` на `.py` файлах как обычно,
+pyright поддерживает их автоматически.
+
+## Python-проекты
+
+Pyright автоматически подхватывает `pyrightconfig.json` и `pyproject.toml`.
+Для виртуальных окружений убедись, что `venv` активировано или путь задан в конфиге.
 
 ## Примеры запросов
 
@@ -65,11 +110,20 @@ CompileFlags:
   → diagnose_file("src/kernel.cu")
 
 Какие методы есть у thrust::device_vector?
-  → get_completions на .cu файле
+  → get_completions на .cu файле с thrust::device_vector<float> v; v.
 
 Покажи сигнатуру cudaMalloc
   → get_hover на .cu файле
 
 Проверь models/train.py на ошибки (CuPy/Numba)
   → diagnose_file("models/train.py")
+
+Проверь код до сохранения
+  → diagnose_code("widget.cpp", "<код>")
+
+Покажи структуру файла
+  → get_symbols("src/mainwindow.cpp")
+
+Какие серверы запущены?
+  → list_servers
 ```
