@@ -2,6 +2,8 @@
  * Formatters — convert LSP protocol objects to concise, LLM-friendly text.
  */
 
+import { relative } from "node:path";
+import { fileURLToPath } from "node:url";
 import type {
   Diagnostic,
   CompletionItem,
@@ -94,10 +96,19 @@ export function formatHover(hover: Hover | null): string {
 
 // ── Definitions ──────────────────────────────────────────────
 
+function uriToRelativePath(uri: string, projectRoot: string): string {
+  try {
+    const absPath = fileURLToPath(uri);
+    return relative(projectRoot, absPath);
+  } catch {
+    return uri;
+  }
+}
+
 export function formatDefinitions(locations: Location[], projectRoot: string): string {
   if (locations.length === 0) return "No definition found.";
   const lines = locations.map((loc) => {
-    const file = loc.uri.replace(`file://${projectRoot}/`, "");
+    const file = uriToRelativePath(loc.uri, projectRoot);
     return `${file}:${loc.range.start.line + 1}:${loc.range.start.character + 1}`;
   });
   return `Definition(s):\n${lines.join("\n")}`;
@@ -108,7 +119,7 @@ export function formatDefinitions(locations: Location[], projectRoot: string): s
 export function formatReferences(locations: Location[], projectRoot: string): string {
   if (locations.length === 0) return "No references found.";
   const lines = locations.map((loc) => {
-    const file = loc.uri.replace(`file://${projectRoot}/`, "");
+    const file = uriToRelativePath(loc.uri, projectRoot);
     return `${file}:${loc.range.start.line + 1}:${loc.range.start.character + 1}`;
   });
   return `${locations.length} reference(s):\n${lines.join("\n")}`;
@@ -121,6 +132,7 @@ const symbolKindLabel = (k: SymbolKind): string => {
     [SymbolKind.File]: "file",
     [SymbolKind.Module]: "module",
     [SymbolKind.Namespace]: "namespace",
+    [SymbolKind.Package]: "package",
     [SymbolKind.Class]: "class",
     [SymbolKind.Method]: "method",
     [SymbolKind.Function]: "function",
@@ -134,6 +146,15 @@ const symbolKindLabel = (k: SymbolKind): string => {
     [SymbolKind.EnumMember]: "enum_member",
     [SymbolKind.Constant]: "constant",
     [SymbolKind.TypeParameter]: "type_param",
+    [SymbolKind.Event]: "event",
+    [SymbolKind.Operator]: "operator",
+    [SymbolKind.Boolean]: "boolean",
+    [SymbolKind.Number]: "number",
+    [SymbolKind.String]: "string",
+    [SymbolKind.Array]: "array",
+    [SymbolKind.Object]: "object",
+    [SymbolKind.Key]: "key",
+    [SymbolKind.Null]: "null",
   };
   return map[k] ?? "other";
 };

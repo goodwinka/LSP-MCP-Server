@@ -17,6 +17,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { resolve } from "node:path";
+import { existsSync } from "node:fs";
 import { LanguageRegistry } from "./language-registry.js";
 import { ServerPool } from "./server-pool.js";
 import {
@@ -28,6 +29,12 @@ import {
   formatSymbols,
 } from "./formatters.js";
 
+// ── Helpers ─────────────────────────────────────────────────
+
+function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
 // ── CLI argument parsing ─────────────────────────────────────
 
 function parseArgs() {
@@ -38,7 +45,11 @@ function parseArgs() {
     switch (args[i]) {
       case "--project":
       case "-p":
-        projectRoot = args[++i] ?? "";
+        if (i + 1 >= args.length) {
+          console.error("Error: --project requires a path argument.");
+          process.exit(1);
+        }
+        projectRoot = args[++i];
         break;
       case "--help":
       case "-h":
@@ -69,7 +80,13 @@ Environment variables:
     process.exit(1);
   }
 
-  return { projectRoot: resolve(projectRoot) };
+  const resolved = resolve(projectRoot);
+  if (!existsSync(resolved)) {
+    console.error(`Error: project root does not exist: ${resolved}`);
+    process.exit(1);
+  }
+
+  return { projectRoot: resolved };
 }
 
 // ── Main ─────────────────────────────────────────────────────
@@ -102,8 +119,8 @@ Use BEFORE writing code to check the current state, and AFTER editing to verify 
         const result = await client.getDiagnostics(file);
         const header = `[${client.serverName}] `;
         return { content: [{ type: "text" as const, text: header + formatDiagnostics(file, result.diagnostics) }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e: unknown) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -126,8 +143,8 @@ Useful for validating code before writing it. Works with any supported language.
         const result = await client.getDiagnostics(file);
         const header = `[${client.serverName}] `;
         return { content: [{ type: "text" as const, text: header + formatDiagnostics(file, result.diagnostics) }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e: unknown) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -150,8 +167,8 @@ Line and character are 0-based. Works with any supported language.`,
         const client = await pool.getClient(file);
         const items = await client.getCompletions(file, line, character);
         return { content: [{ type: "text" as const, text: formatCompletions(items) }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e: unknown) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -174,8 +191,8 @@ Line and character are 0-based. Works with any supported language.`,
         const client = await pool.getClient(file);
         const hover = await client.getHover(file, line, character);
         return { content: [{ type: "text" as const, text: formatHover(hover) }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e: unknown) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -197,8 +214,8 @@ Line and character are 0-based. Works with any supported language.`,
         const client = await pool.getClient(file);
         const locs = await client.getDefinitions(file, line, character);
         return { content: [{ type: "text" as const, text: formatDefinitions(locs, projectRoot) }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e: unknown) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -220,8 +237,8 @@ Line and character are 0-based. Works with any supported language.`,
         const client = await pool.getClient(file);
         const locs = await client.getReferences(file, line, character);
         return { content: [{ type: "text" as const, text: formatReferences(locs, projectRoot) }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e: unknown) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -242,8 +259,8 @@ Works with any supported language.`,
         const client = await pool.getClient(file);
         const symbols = await client.getDocumentSymbols(file);
         return { content: [{ type: "text" as const, text: formatSymbols(symbols) }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e: unknown) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
