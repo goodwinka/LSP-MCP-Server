@@ -132,11 +132,7 @@ export class LspClient {
           hover: { contentFormat: ["plaintext", "markdown"] },
           synchronization: { didSave: true, dynamicRegistration: false },
         },
-        workspace: { workspaceFolders: true },
       },
-      workspaceFolders: [
-        { uri: `file://${this.projectRoot}`, name: "project" },
-      ],
     };
 
     await this.connection.sendRequest(InitializeRequest.type, initParams);
