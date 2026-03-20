@@ -41,6 +41,22 @@ src/
 # Verify it builds
 npm run build
 
+# Run the Qt5/C++ integration test (requires clangd and Qt5 dev headers)
+node tests/test-cpp-qt.mjs
+
 # Run with debug output
 LSP_MCP_DEBUG=1 node dist/index.js --project /path/to/test/project
 ```
+
+## MCP Tools
+
+| Tool | Key parameters | Purpose |
+|---|---|---|
+| `diagnose_file` | `file` | Errors/warnings for a file on disk |
+| `diagnose_workspace` | _(none)_ | Aggregate diagnostics across all open files |
+| `get_completions` | `file`, `line`, `character` | Completions at a position |
+| `get_hover` | `file`, `line`, `character` | Type/doc for a symbol |
+| `get_definitions` | `file`, `line`, `character` | Jump to definition |
+| `find_references` | `file`, `line`, `character` | Find all usages |
+| `get_symbols` | `file` | Document symbol tree |
+| `list_servers` | _(none)_ | Server status and supported extensions |

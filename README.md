@@ -1,10 +1,10 @@
-# LSP-MCP Server — Universal IntelliSense для LLM
+# LSP-MCP Server — Universal IntelliSense for LLMs
 
-MCP-сервер, который автоматически подключает нужный **Language Server** (clangd, pyright, tsserver, gopls, rust-analyzer…) и предоставляет Claude Code доступ к полноценному IntelliSense для **любого языка**, включая **CUDA**: диагностика ошибок, автодополнение, информация о типах, навигация по коду.
+An MCP server that automatically connects the right **Language Server** (clangd, pyright, tsserver, gopls, rust-analyzer…) and gives Claude Code full IntelliSense for **any language**, including **CUDA**: error diagnostics, completions, type info, and code navigation.
 
-## Поддерживаемые языки
+## Supported Languages
 
-| Язык | LSP-сервер | Расширения |
+| Language | LSP server | Extensions |
 |---|---|---|
 | C / C++ / Qt / CUDA | clangd | .c .h .cpp .cxx .cc .hpp .hxx .hh .ipp .cu .cuh |
 | Python | pyright / pylsp | .py .pyi |
@@ -21,9 +21,9 @@ MCP-сервер, который автоматически подключает
 | JSON | vscode-json-languageserver | .json .jsonc |
 | CMake | cmake-language-server | .cmake |
 
-Сервер **автоматически определяет** нужный LSP по расширению файла. Вы открываете `.cpp` — запускается clangd. Открываете `.py` — запускается pyright. Всё прозрачно.
+The server **automatically selects** the right LSP by file extension. Open a `.cpp` file — clangd starts. Open a `.py` file — pyright starts. Everything is transparent.
 
-## Как это работает
+## How It Works
 
 ```
 Claude Code  ──(MCP/stdio)──►  lsp-mcp-server  ──(LSP/JSON-RPC)──►  clangd
@@ -34,33 +34,33 @@ Claude Code  ──(MCP/stdio)──►  lsp-mcp-server  ──(LSP/JSON-RPC)─
                                              one per language)         ...
 ```
 
-LLM может:
-1. **До написания** — запросить сигнатуры функций через `get_completions` и `get_hover`
-2. **После написания** — прогнать `diagnose_file` / `diagnose_code` и увидеть ошибки
-3. **При рефакторинге** — найти все использования через `find_references`
+The LLM can:
+1. **Before writing** — query function signatures via `get_completions` and `get_hover`
+2. **After writing** — run `diagnose_file` or `diagnose_workspace` to see errors
+3. **During refactoring** — find all usages via `find_references`
 
-## Установка
+## Installation
 
-### 1. Собрать сервер
+### 1. Build the server
 
 ```bash
 cd lsp-mcp-server
 npm install
-npm run build      # компиляция TypeScript → dist/
-# или для разработки без сборки:
-npm run dev        # запуск через tsx напрямую
+npm run build      # compile TypeScript → dist/
+# or for development without a build step:
+npm run dev        # run directly via tsx
 ```
 
-### 2. Установить нужные LSP-серверы
+### 2. Install the language servers you need
 
-Устанавливайте только те, которые вам нужны:
+Install only the ones relevant to your project:
 
 ```bash
 # C++ / Qt
-sudo apt install clangd-18          # или: brew install llvm
+sudo apt install clangd-18          # or: brew install llvm
 
 # Python
-npm install -g pyright               # или: pip install pyright
+npm install -g pyright               # or: pip install pyright
 
 # TypeScript / JavaScript
 npm install -g typescript-language-server typescript
@@ -79,30 +79,30 @@ npm install -g vscode-langservers-extracted
 
 # CMake
 pip install cmake-language-server
-# Примечание: работает только с файлами .cmake, не с CMakeLists.txt напрямую
+# Note: works with .cmake files only, not CMakeLists.txt directly
 
 # Lua
 brew install lua-language-server         # macOS
-# Linux: скачать с https://github.com/LuaLS/lua-language-server/releases
+# Linux: download from https://github.com/LuaLS/lua-language-server/releases
 
 # Java (Eclipse JDT LS)
-# Скачать и установить: https://github.com/eclipse-jdtls/eclipse.jdt.ls/releases
-# После установки убедитесь, что команда `jdtls` доступна в PATH
+# Download and install: https://github.com/eclipse-jdtls/eclipse.jdt.ls/releases
+# Make sure the `jdtls` command is available in PATH
 
 # Kotlin
-# Скачать с https://github.com/fwcd/kotlin-language-server/releases
-# После установки убедитесь, что команда `kotlin-language-server` доступна в PATH
+# Download from https://github.com/fwcd/kotlin-language-server/releases
+# Make sure `kotlin-language-server` is available in PATH
 
 # Zig
-# Скачать с https://github.com/zigtools/zls/releases
-# После установки убедитесь, что команда `zls` доступна в PATH
+# Download from https://github.com/zigtools/zls/releases
+# Make sure `zls` is available in PATH
 ```
 
-Посмотреть, что установлено, можно инструментом `list_servers`.
+Use the `list_servers` tool to see what is installed.
 
-### 3. Подключить к Claude Code
+### 3. Connect to Claude Code
 
-**Вариант A: Конфиг проекта** (`.mcp.json` в корне проекта)
+**Option A: Project config** (`.mcp.json` in the project root)
 
 ```json
 {
@@ -115,7 +115,7 @@ brew install lua-language-server         # macOS
 }
 ```
 
-**Вариант B: Глобальный конфиг** (`~/.claude/claude_desktop_config.json`)
+**Option B: Global config** (`~/.claude/claude_desktop_config.json`)
 
 ```json
 {
@@ -131,7 +131,7 @@ brew install lua-language-server         # macOS
 }
 ```
 
-**Вариант C: Через переменные окружения**
+**Option C: Environment variables**
 
 ```json
 {
@@ -148,50 +148,72 @@ brew install lua-language-server         # macOS
 }
 ```
 
-## Доступные инструменты
+## Available Tools
 
-| Инструмент | Описание |
+| Tool | Description |
 |---|---|
-| `diagnose_file` | Ошибки/предупреждения компилятора для файла на диске |
-| `diagnose_code` | Проверить код на ошибки без сохранения (виртуальный файл) |
-| `get_completions` | Автодополнение в указанной позиции |
-| `get_hover` | Тип и документация символа |
-| `get_definitions` | Перейти к определению символа |
-| `find_references` | Найти все использования символа в проекте |
-| `get_symbols` | Дерево символов файла |
-| `list_servers` | Показать все языки, статус серверов (установлен/запущен) |
+| `diagnose_file` | Compiler errors/warnings for a file on disk |
+| `diagnose_workspace` | Errors/warnings for all files opened in the current session, across all language servers |
+| `get_completions` | Completions at a given position |
+| `get_hover` | Type and documentation for a symbol |
+| `get_definitions` | Jump to symbol definition |
+| `find_references` | Find all usages of a symbol in the project |
+| `get_symbols` | Symbol tree for a file |
+| `list_servers` | Show all languages, server status (installed / running) |
 
-## Примеры использования
+### diagnose_workspace
+
+Returns a workspace-wide diagnostics summary in one call, without requiring file content. Reports total errors and warnings, the number of affected files, and per-file details.
+
+Example output when clean:
+```
+✅ Workspace clean — 3 file(s) checked, no errors or warnings
+```
+
+Example output with issues:
+```
+Found 2 error(s), 1 warning(s) across 1/3 file(s):
+
+Found 2 diagnostic(s) in src/main.cpp:
+
+ERROR src/main.cpp:12:5 [clang]: no member named 'nonExistent' in 'QWidget'
+WARN  src/main.cpp:8:3 [clang]: unused variable 'x'
+```
+
+## Usage Examples
 
 ```
-> Проверь файл src/mainwindow.cpp на ошибки
+> Check src/mainwindow.cpp for errors
   → [clangd] diagnose_file("src/mainwindow.cpp")
 
-> Проверь app/models.py
+> Check all open files for errors
+  → diagnose_workspace()
+
+> Check app/models.py
   → [pyright] diagnose_file("app/models.py")
 
-> Какие методы есть у QTableView?
-  → get_completions на .cpp файле с QTableView*
+> What methods does QTableView have?
+  → get_completions on a .cpp file with QTableView*
 
-> Покажи сигнатуру функции pandas.read_csv
-  → get_hover на .py файле
+> Show the signature of pandas.read_csv
+  → get_hover on a .py file
 
-> Какие серверы доступны?
+> What servers are available?
   → list_servers
 ```
 
-## Советы для C++/Qt
+## Tips for C++ / Qt
 
-Для корректной работы clangd с Qt нужен `compile_commands.json`:
+clangd works best with a `compile_commands.json` in the project root:
 
 ```bash
 # CMake
 cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
 
-# qmake через Bear
+# qmake via Bear
 bear -- make
 
-# Или вручную — файл .clangd в корне проекта:
+# Or manually — create a .clangd file in the project root:
 cat > .clangd << 'EOF'
 CompileFlags:
   Add:
@@ -204,25 +226,25 @@ CompileFlags:
 EOF
 ```
 
-## Советы для CUDA
+## Tips for CUDA
 
 ### CUDA C++ (.cu, .cuh)
 
-clangd поддерживает CUDA нативно (основан на clang). Для корректной работы нужен CUDA Toolkit:
+clangd supports CUDA natively (it is based on clang). You need the CUDA Toolkit installed:
 
 ```bash
-# Проверить установку
+# Verify installation
 nvcc --version
 ```
 
-Для лучшей работы IntelliSense создайте `compile_commands.json`:
+For best IntelliSense results, generate a `compile_commands.json`:
 
 ```bash
-# CMake с CUDA
+# CMake with CUDA
 cmake -DCMAKE_CUDA_COMPILER=nvcc -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
 ```
 
-Или создайте файл `.clangd` в корне проекта:
+Or create a `.clangd` file in the project root:
 
 ```yaml
 CompileFlags:
@@ -235,12 +257,12 @@ CompileFlags:
 
 ### CUDA Python (CuPy, Numba, PyCUDA)
 
-Python-библиотеки для CUDA работают через обычный pyright — отдельная настройка не нужна.
-Для улучшенной проверки типов установите стабы:
+Python CUDA libraries work through the standard pyright — no special setup needed.
+For improved type checking, install the stubs:
 
 ```bash
-# CuPy — стабы включены в пакет
-pip install cupy-cuda12x    # или cupy-cuda11x
+# CuPy — stubs are bundled in the package
+pip install cupy-cuda12x    # or cupy-cuda11x
 
 # Numba
 pip install numba
@@ -249,48 +271,48 @@ pip install numba
 pip install pycuda
 ```
 
-Pyright автоматически подхватит типы из установленных пакетов.
+Pyright will automatically pick up types from installed packages.
 
-## Советы для Python
+## Tips for Python
 
-Pyright автоматически подхватывает `pyrightconfig.json` и `pyproject.toml`. Для виртуальных окружений убедитесь, что `venv` активировано или указан путь в конфиге.
+Pyright automatically reads `pyrightconfig.json` and `pyproject.toml`. For virtual environments, either activate the `venv` before starting, or specify the path in the config.
 
 ## CLI
 
 ```
---project, -p <path>    Путь к корню проекта (обязательно)
---help, -h              Показать справку и выйти
+--project, -p <path>    Path to the project root (required)
+--help, -h              Show help and exit
 ```
 
-## Переменные окружения
+## Environment Variables
 
-| Переменная | Описание |
+| Variable | Description |
 |---|---|
-| `LSP_PROJECT_ROOT` | Путь к проекту (если не задан --project) |
-| `LSP_MCP_DEBUG=1` | Выводить stderr языковых серверов |
+| `LSP_PROJECT_ROOT` | Project path (if `--project` is not set) |
+| `LSP_MCP_DEBUG=1` | Print language server stderr to stdout |
 
-## Устранение проблем
+## Troubleshooting
 
-### Какой сервер выбран для моего файла?
+### Which server is selected for my file?
 
-Используйте инструмент `list_servers` — он покажет все серверы, их статус и поддерживаемые расширения. Сервер выбирается автоматически по расширению файла.
+Use the `list_servers` tool — it shows all servers, their status, and supported extensions. The server is selected automatically by file extension.
 
-### Если установлены оба pyright и pylsp
+### Both pyright and pylsp are installed
 
-Первым в реестре стоит **pyright** — он и будет использоваться для `.py` файлов. Если нужен pylsp, удалите или переименуйте `pyright-langserver`.
+**pyright** is listed first in the registry and will be used for `.py` files. To use pylsp instead, remove or rename `pyright-langserver`.
 
-### CMakeLists.txt не диагностируется
+### CMakeLists.txt is not diagnosed
 
-`cmake-language-server` подключается только к файлам с расширением `.cmake`. Для `CMakeLists.txt` поддержка пока не реализована — это ограничение текущей архитектуры определения языка по расширению.
+`cmake-language-server` only attaches to `.cmake` files. `CMakeLists.txt` is not supported — this is a limitation of the current extension-based language detection.
 
-### Сервер запустился, но нет диагностики
+### Server started but no diagnostics appear
 
-Включите отладочный вывод (`LSP_MCP_DEBUG=1`) и проверьте stderr языкового сервера. Убедитесь, что для C++ проекта создан `compile_commands.json` или файл `.clangd`.
+Enable debug output (`LSP_MCP_DEBUG=1`) and inspect the language server's stderr. For C++ projects, make sure `compile_commands.json` or a `.clangd` file exists.
 
-### Ошибка "path is outside project root"
+### Error "path is outside project root"
 
-Все пути к файлам должны быть **относительно корня проекта**, указанного в `--project`. Абсолютные пути не допускаются.
+All file paths must be **relative to the project root** specified in `--project`. Absolute paths are not accepted.
 
-## Лицензия
+## License
 
 MIT
