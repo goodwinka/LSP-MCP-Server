@@ -22,6 +22,7 @@ import { existsSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { createServer, IncomingMessage, ServerResponse } from "node:http";
+import { spawn } from "node:child_process";
 import { LanguageRegistry } from "./language-registry.js";
 import { ServerPool } from "./server-pool.js";
 import {
@@ -230,8 +231,20 @@ Call this at the start of a new session or whenever you need guidance on:
 
 ## C / C++ / Qt projects
 
-clangd requires a \`.clangd\` config file in the workspace root.
-Write it with \`write_file\` before running any analysis.
+clangd works best with \`compile_commands.json\`. Use \`run_command\` to generate it.
+
+**If the project uses CMake** (has CMakeLists.txt):
+\`\`\`
+run_command: cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -B build .
+run_command: cp build/compile_commands.json .
+\`\`\`
+
+**If the project uses make/qmake** (Bear must be installed on server):
+\`\`\`
+run_command: bear -- make
+\`\`\`
+
+**Fallback — no build system** (write a \`.clangd\` config via \`write_file\`):
 
 Standard C++17 with Qt6:
 \`\`\`yaml
@@ -252,14 +265,20 @@ CompileFlags:
     - -std=c++17
 \`\`\`
 
-**Important for mixed C/C++ projects** (files with both .c and .cpp):
-do NOT add \`-std=c++17\` — it breaks C files. Ask the user for their
-compiler flags or use a minimal config without language-standard flags.
+**Important for mixed C/C++ projects** (both .c and .cpp files):
+use \`compile_commands.json\` — do NOT put \`-std=c++17\` in \`.clangd\`, it breaks C files.
 
 ## CUDA projects (.cu / .cuh)
 
 CUDA Toolkit must be installed on the server (\`nvcc\` in PATH).
 
+**If the project uses CMake**:
+\`\`\`
+run_command: cmake -DCMAKE_CUDA_COMPILER=nvcc -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -B build .
+run_command: cp build/compile_commands.json .
+\`\`\`
+
+**Fallback — write a \`.clangd\` config**:
 \`\`\`yaml
 CompileFlags:
   Add:
@@ -270,7 +289,6 @@ CompileFlags:
 \`\`\`
 
 Adjust \`sm_75\` to match the user's GPU architecture (sm_60, sm_80, sm_89, etc.).
-If the user doesn't know — use sm_75 as a safe default.
 
 ## Python projects
 
@@ -308,9 +326,10 @@ The workspace is automatically deleted after ${ttlHours} hour(s) of inactivity.
 
 Typical session start:
 1. Call create_workspace → get workspace_id
-2. For C/C++/CUDA projects: call get_workspace_guide for .clangd setup instructions
-3. Use write_file to upload source files (and .clangd if needed)
-4. Run diagnose_file / get_hover / etc.`,
+2. Use write_file to upload all source files
+3. For C/C++/CUDA with CMake: run cmake via run_command to generate compile_commands.json
+4. Run diagnose_file / get_hover / etc.
+For full setup instructions call get_workspace_guide.`,
     {},
     async () => {
       try {
@@ -324,8 +343,8 @@ Typical session start:
               `Auto-expires after: ${ttlHours}h of inactivity`,
               ``,
               `Next steps:`,
-              `• C/C++/CUDA project → call get_workspace_guide for language-specific setup`,
-              `• Other languages   → use write_file to upload sources, then analyse`,
+              `• C/C++/CUDA project → call get_workspace_guide for setup instructions`,
+              `• Other languages   → write_file to upload sources, then analyse`,
             ].join("\n"),
           }],
         };
@@ -370,6 +389,54 @@ For multi-file projects call this once per file, preserving the original directo
     }
     return { pool: ws.pool, projectRoot: ws.projectRoot };
   }
+
+  // ── Tool: run_command ────────────────────────────────────
+
+  server.tool(
+    "run_command",
+    `Run a shell command inside the workspace directory.
+Use this to generate build files needed by LSP servers, for example:
+  cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -B build .
+  cmake -DCMAKE_CUDA_COMPILER=nvcc -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -B build .
+  bear -- make
+After cmake runs, compile_commands.json will appear in the build directory.
+Copy or symlink it to the workspace root so clangd can find it:
+  cp build/compile_commands.json .
+The command runs with a 60-second timeout. stdout and stderr are returned.`,
+    {
+      workspace_id: z.string().describe("Workspace ID returned by create_workspace"),
+      command: z.string().describe("Shell command to run, e.g. 'cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -B build .'"),
+    },
+    async ({ workspace_id, command }) => {
+      const ws = manager.get(workspace_id);
+      if (!ws) {
+        return {
+          content: [{ type: "text" as const, text: `Workspace not found or expired: ${workspace_id}` }],
+          isError: true,
+        };
+      }
+      try {
+        const output = await new Promise<string>((resolve, reject) => {
+          const proc = spawn("sh", ["-c", command], {
+            cwd: ws.projectRoot,
+            timeout: 60_000,
+          });
+          const chunks: Buffer[] = [];
+          proc.stdout.on("data", (d: Buffer) => chunks.push(d));
+          proc.stderr.on("data", (d: Buffer) => chunks.push(d));
+          proc.on("close", (code) => {
+            const text = Buffer.concat(chunks).toString("utf-8").trim();
+            const header = `$ ${command}\nexit code: ${code}\n\n`;
+            resolve(header + (text || "(no output)"));
+          });
+          proc.on("error", reject);
+        });
+        return { content: [{ type: "text" as const, text: output }] };
+      } catch (e: unknown) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
+      }
+    }
+  );
 
   // ── Tool: diagnose_file ──────────────────────────────────
 

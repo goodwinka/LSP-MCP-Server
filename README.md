@@ -200,13 +200,15 @@ AI: → create_workspace()             # creates isolated temp dir
 ```
 
 ```
-User: Check this C++ Qt code: [paste code]
+User: Check this C++ Qt CMake project: [pastes CMakeLists.txt + sources]
 
-AI: → create_workspace()             # creates isolated temp dir
-    → get_workspace_guide()          # reads C++ setup instructions
-    → write_file(".clangd", ...)     # writes clangd config with Qt includes
-    → write_file("main.cpp", ...)    # uploads the source
-    → diagnose_file("main.cpp")      # runs clangd
+AI: → create_workspace()                          # creates isolated temp dir
+    → get_workspace_guide()                       # reads C++ setup instructions
+    → write_file("CMakeLists.txt", ...)
+    → write_file("src/main.cpp", ...)
+    → run_command("cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -B build .")
+    → run_command("cp build/compile_commands.json .")
+    → diagnose_file("src/main.cpp")               # runs clangd with full type info
     → reports errors and suggestions
 ```
 
@@ -223,6 +225,7 @@ Workspaces are automatically deleted after 1 hour of inactivity (configurable vi
 | `get_workspace_guide` | — | Setup instructions and language-specific tips (call at session start) |
 | `create_workspace` | — | Create a temp workspace, returns `workspace_id` |
 | `write_file` | `workspace_id`, `path`, `content` | Upload a source file to the workspace |
+| `run_command` | `workspace_id`, `command` | Run a shell command in the workspace (cmake, make, bear, cp, …) |
 | `diagnose_file` | `workspace_id`, `file` | Compiler errors/warnings for a file |
 | `diagnose_workspace` | `workspace_id` | Errors/warnings across all opened files |
 | `get_completions` | `workspace_id`, `file`, `line`, `character` | Completions at a position |
