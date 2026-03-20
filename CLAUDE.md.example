@@ -18,29 +18,38 @@ If `.mcp.json` does not exist in the project root, create it:
 After creating it, tell the user: "File .mcp.json created. Restart Claude Code
 (or run /mcp restart) to connect LSP IntelliSense."
 
-If `.mcp.json` already exists and the `intellisense` server is available in the MCP tools list —
-use its tools when working with code (see below).
+If `.mcp.json` already exists and the `intellisense` server is available in the
+MCP tools list — use its tools when working with code (see below).
 
 ## Workflow When Working with Code
 
 ### When writing or modifying code:
-1. **Before writing** — use `get_hover` to check API signatures and `get_completions` for available methods
-2. **After writing** — use `diagnose_file` to check for compiler/linter errors
-3. **When refactoring** — use `find_references` to find all usages of a symbol
+1. **Before writing** — use `get_hover` to check API signatures and
+   `get_completions` for available methods.
+2. **After editing a file** — use `diagnose_file` to check for compiler/linter
+   errors immediately.
+3. **After a multi-file change** — use `diagnose_workspace` to see errors
+   across all opened files in one call.
+4. **When refactoring** — use `find_references` to find all usages of a symbol
+   before renaming or deleting it.
 
 ### Available IntelliSense tools:
-- `diagnose_file` — errors and warnings for a file on disk
-- `diagnose_code` — check code without saving (virtual file)
-- `get_completions` — autocomplete at a position (functions, methods, variables)
-- `get_hover` — type and documentation for a symbol
-- `get_definitions` — go to definition
-- `find_references` — all usages of a symbol in the project
-- `get_symbols` — file structure (classes, functions, variables)
-- `list_servers` — status of language servers
+
+| Tool | Description |
+|---|---|
+| `diagnose_file` | Errors and warnings for a file on disk |
+| `diagnose_workspace` | Errors/warnings for all files opened this session |
+| `get_completions` | Autocomplete at a position (functions, methods, variables) |
+| `get_hover` | Type and documentation for a symbol |
+| `get_definitions` | Go to definition |
+| `find_references` | All usages of a symbol in the project |
+| `get_symbols` | File structure (classes, functions, variables) |
+| `list_servers` | Status of language servers |
 
 ## C / C++ / Qt Projects
 
-For clangd to work correctly, a `compile_commands.json` or `.clangd` file is needed in the root:
+For clangd to work correctly, a `compile_commands.json` or `.clangd` file is
+needed in the project root:
 
 ```bash
 # CMake (recommended)
@@ -50,7 +59,7 @@ cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
 bear -- make
 ```
 
-Example `.clangd` for C++ / Qt project (without CMake):
+Example `.clangd` for a C++ / Qt project (without CMake):
 ```yaml
 CompileFlags:
   Add:
@@ -62,19 +71,20 @@ CompileFlags:
     - -fPIC
 ```
 
-**Important for mixed C/C++ projects**: the `-std=c++17` flag is incompatible with `.c` files.
-For projects with both `.c` and `.cpp` files, use `compile_commands.json` instead of `.clangd`.
+**Important for mixed C/C++ projects**: the `-std=c++17` flag is incompatible
+with `.c` files. For projects with both `.c` and `.cpp` files, use
+`compile_commands.json` instead of `.clangd`.
 
 ## CUDA Projects
 
 For CUDA C++ files (`.cu`, `.cuh`) IntelliSense works via clangd.
-**Required**: CUDA Toolkit installed (nvcc must be in PATH).
+**Required**: CUDA Toolkit installed (`nvcc` must be in PATH).
 
 ```bash
 # Verify
 nvcc --version
 
-# compile_commands.json for CUDA
+# Generate compile_commands.json for CUDA
 cmake -DCMAKE_CUDA_COMPILER=nvcc -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
 ```
 
@@ -88,16 +98,17 @@ CompileFlags:
     - -std=c++17
 ```
 
-Without CUDA Toolkit, clangd will return errors like `Cannot find CUDA installation` — this is not a server bug,
-you need to install CUDA Toolkit.
+Without CUDA Toolkit, clangd will report `Cannot find CUDA installation` —
+this is not a server bug, install the CUDA Toolkit to fix it.
 
-For Python CUDA (CuPy, Numba, PyCUDA) — use `diagnose_file` on `.py` files as usual,
-pyright supports them automatically.
+For Python CUDA (CuPy, Numba, PyCUDA) — use `diagnose_file` on `.py` files
+as usual; pyright supports them automatically.
 
 ## Python Projects
 
-Pyright automatically picks up `pyrightconfig.json` and `pyproject.toml`.
-For virtual environments, make sure `venv` is activated or the path is set in the config.
+Pyright automatically reads `pyrightconfig.json` and `pyproject.toml`.
+For virtual environments, make sure the `venv` is activated or the path is
+set in the config.
 
 ## Example Queries
 
@@ -105,19 +116,19 @@ For virtual environments, make sure `venv` is activated or the path is set in th
 Check src/kernel.cu for errors
   → diagnose_file("src/kernel.cu")
 
+Check all open files after a refactor
+  → diagnose_workspace()
+
 What methods does thrust::device_vector have?
-  → get_completions on a .cu file with thrust::device_vector<float> v; v.
+  → get_completions on a .cu file with `thrust::device_vector<float> v; v.`
 
 Show the signature of cudaMalloc
-  → get_hover on a .cu file
+  → get_hover on a .cu file at the symbol
 
-Check models/train.py for errors (CuPy/Numba)
+Check models/train.py for errors (CuPy / Numba)
   → diagnose_file("models/train.py")
 
-Check code before saving
-  → diagnose_code("widget.cpp", "<code>")
-
-Show file structure
+Show the symbol tree of a file
   → get_symbols("src/mainwindow.cpp")
 
 What servers are running?
