@@ -9,8 +9,9 @@
  * The correct LSP server is auto-selected based on file extension.
  *
  * Usage:
- *   lsp-mcp-server --project /path/to/project
- *   LSP_PROJECT_ROOT=/path/to/project lsp-mcp-server
+ *   lsp-mcp-server --project /path/to/project          (stdio, single project)
+ *   lsp-mcp-server --port 3100                          (HTTP, multi-project)
+ *   lsp-mcp-server --port 3100 --project /default/path  (HTTP, with default project)
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -19,7 +20,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { z } from "zod";
 import { resolve } from "node:path";
 import { existsSync } from "node:fs";
-import { createServer } from "node:http";
+import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { LanguageRegistry } from "./language-registry.js";
 import { ServerPool } from "./server-pool.js";
 import {
@@ -77,7 +78,10 @@ for C/C++/CUDA, Python, TypeScript/JavaScript, Go, Rust, Lua, Bash, Java, Kotlin
 Zig, CSS, HTML, JSON, and more — auto-detected by file extension.
 
 Options:
-  --project, -p <path>    Path to project root (required)
+  --project, -p <path>    Path to project root
+                          Required for stdio mode.
+                          Optional in HTTP mode — becomes the default project
+                          when no ?project= query parameter is given.
   --port, -P <number>     Start HTTP server on this port (for OpenWebUI / remote MCP clients)
                           If omitted, uses stdio transport (default for Claude Code)
 
@@ -85,12 +89,19 @@ Environment variables:
   LSP_PROJECT_ROOT        Project root (fallback if --project not given)
   LSP_MCP_PORT            HTTP port (fallback if --port not given)
   LSP_MCP_DEBUG=1         Print language server stderr to console
+
+HTTP multi-project mode:
+  Each client specifies its own project path via the ?project= URL parameter:
+    http://host:3100/mcp?project=/home/alice/myapp
+    http://host:3100/mcp?project=/home/bob/otherapp
+  The server maintains a separate pool of LSP servers per project.
 `);
         process.exit(0);
     }
   }
 
-  if (!projectRoot) {
+  // In stdio mode a project root is required
+  if (!port && !projectRoot) {
     console.error(
       "Error: project root is required.\n" +
       "Use --project <path> or set LSP_PROJECT_ROOT env var.\n" +
@@ -99,23 +110,21 @@ Environment variables:
     process.exit(1);
   }
 
-  const resolved = resolve(projectRoot);
-  if (!existsSync(resolved)) {
-    console.error(`Error: project root does not exist: ${resolved}`);
-    process.exit(1);
+  let resolvedProject = "";
+  if (projectRoot) {
+    resolvedProject = resolve(projectRoot);
+    if (!existsSync(resolvedProject)) {
+      console.error(`Error: project root does not exist: ${resolvedProject}`);
+      process.exit(1);
+    }
   }
 
-  return { projectRoot: resolved, port };
+  return { defaultProject: resolvedProject, port };
 }
 
-// ── Main ─────────────────────────────────────────────────────
+// ── MCP server factory ───────────────────────────────────────
 
-async function main() {
-  const { projectRoot, port } = parseArgs();
-
-  const registry = new LanguageRegistry();
-  const pool = new ServerPool(projectRoot, registry);
-
+function buildMcpServer(pool: ServerPool, projectRoot: string, registry: LanguageRegistry): McpServer {
   const server = new McpServer({
     name: "lsp-intellisense",
     version: "2.0.0",
@@ -315,38 +324,124 @@ Also shows which servers are currently running.`,
     }
   );
 
-  // ── Start server ─────────────────────────────────────────
+  return server;
+}
 
-  const shutdown = async () => {
-    await pool.stopAll();
-    process.exit(0);
-  };
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
+// ── Multi-project pool manager ───────────────────────────────
+
+class ProjectManager {
+  private pools = new Map<string, ServerPool>();
+
+  constructor(private registry: LanguageRegistry) {}
+
+  getPool(projectRoot: string): ServerPool {
+    if (!this.pools.has(projectRoot)) {
+      this.pools.set(projectRoot, new ServerPool(projectRoot, this.registry));
+    }
+    return this.pools.get(projectRoot)!;
+  }
+
+  async stopAll(): Promise<void> {
+    await Promise.all([...this.pools.values()].map((p) => p.stopAll()));
+  }
+}
+
+// ── HTTP request handler ─────────────────────────────────────
+
+function resolveProjectFromRequest(
+  req: IncomingMessage,
+  defaultProject: string
+): { projectRoot: string; error?: string } {
+  const reqUrl = new URL(req.url ?? "/", "http://localhost");
+
+  // Priority: ?project= query param, then X-Project-Root header, then default
+  const raw =
+    reqUrl.searchParams.get("project") ??
+    (req.headers["x-project-root"] as string | undefined) ??
+    defaultProject;
+
+  if (!raw) {
+    return {
+      projectRoot: "",
+      error:
+        'No project specified. Add ?project=/path/to/project to the URL, ' +
+        'or set X-Project-Root header, or start the server with --project.',
+    };
+  }
+
+  const projectRoot = resolve(raw);
+  if (!existsSync(projectRoot)) {
+    return { projectRoot: "", error: `Project root does not exist: ${projectRoot}` };
+  }
+
+  return { projectRoot };
+}
+
+// ── Main ─────────────────────────────────────────────────────
+
+async function main() {
+  const { defaultProject, port } = parseArgs();
+
+  const registry = new LanguageRegistry();
 
   if (port !== undefined) {
-    // HTTP mode — for OpenWebUI and other remote MCP clients
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined, // stateless
-    });
+    // ── HTTP mode: multi-project, multi-user ─────────────
+    const manager = new ProjectManager(registry);
 
-    const httpServer = createServer(async (req, res) => {
-      if (req.url === "/mcp" || req.url === "/") {
-        await transport.handleRequest(req, res);
-      } else {
+    const shutdown = async () => {
+      await manager.stopAll();
+      process.exit(0);
+    };
+    process.on("SIGINT", shutdown);
+    process.on("SIGTERM", shutdown);
+
+    const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+      const reqUrl = new URL(req.url ?? "/", "http://localhost");
+      const path = reqUrl.pathname;
+
+      if (path !== "/mcp" && path !== "/") {
         res.writeHead(404, { "Content-Type": "text/plain" });
         res.end("Not found. MCP endpoint is at /mcp");
+        return;
       }
-    });
 
-    await server.connect(transport);
+      const { projectRoot, error } = resolveProjectFromRequest(req, defaultProject);
+      if (error) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error }));
+        return;
+      }
+
+      const pool = manager.getPool(projectRoot);
+      const server = buildMcpServer(pool, projectRoot, registry);
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined, // stateless — new McpServer per request is fine
+      });
+
+      await server.connect(transport);
+      await transport.handleRequest(req, res);
+    });
 
     httpServer.listen(port, () => {
       process.stderr.write(`LSP-MCP Server listening on http://0.0.0.0:${port}/mcp\n`);
-      process.stderr.write(`Project: ${projectRoot}\n`);
+      if (defaultProject) {
+        process.stderr.write(`Default project: ${defaultProject}\n`);
+      } else {
+        process.stderr.write(`Multi-project mode: clients must pass ?project=/path/to/project\n`);
+      }
     });
   } else {
-    // stdio mode — default, for Claude Code and local MCP clients
+    // ── stdio mode: single project, Claude Code ──────────
+    const pool = new ServerPool(defaultProject, registry);
+    const server = buildMcpServer(pool, defaultProject, registry);
+
+    const shutdown = async () => {
+      await pool.stopAll();
+      process.exit(0);
+    };
+    process.on("SIGINT", shutdown);
+    process.on("SIGTERM", shutdown);
+
     const transport = new StdioServerTransport();
     await server.connect(transport);
   }

@@ -148,34 +148,52 @@ Use the `list_servers` tool to see what is installed.
 }
 ```
 
-### 4. Connect to OpenWebUI
+### 4. Connect to OpenWebUI (multi-user HTTP mode)
 
-OpenWebUI requires an HTTP endpoint. Start the server with `--port`:
+OpenWebUI requires an HTTP endpoint. The server supports multiple users simultaneously — each user specifies their own project path in the URL.
 
-```bash
-node /absolute/path/to/lsp-mcp-server/dist/index.js \
-  --project /path/to/your/project \
-  --port 3100
-```
+**Important:** The source code must be accessible on the machine running lsp-mcp-server (via local disk, NFS, sshfs, git clone, etc.). The server runs LSP processes locally — it cannot access files on client machines.
 
-Or with environment variables:
+#### Start the server
 
 ```bash
-LSP_PROJECT_ROOT=/path/to/your/project LSP_MCP_PORT=3100 \
-  node /absolute/path/to/lsp-mcp-server/dist/index.js
+# No default project — every client must provide ?project=
+node /absolute/path/to/lsp-mcp-server/dist/index.js --port 3100
+
+# With a default project (used when no ?project= is given)
+node /absolute/path/to/lsp-mcp-server/dist/index.js --port 3100 --project /srv/projects/shared
 ```
 
-Then in OpenWebUI:
+#### Connect each user in OpenWebUI
 
 1. Open **Settings → Tools** (or **Admin Panel → Tools**)
 2. Click **Add Tool Server** (or the **+** button)
-3. Set the URL to `http://localhost:3100/mcp`
+3. Set the URL with **your** project path:
+   ```
+   http://your-server:3100/mcp?project=/srv/projects/alice/myapp
+   ```
 4. Save — the 8 IntelliSense tools will appear automatically
 
-> **Note:** The server must be running on a machine that OpenWebUI can reach.
-> For Docker deployments use the host IP instead of `localhost`, e.g. `http://host.docker.internal:3100/mcp`.
+Each user connects with their own URL pointing to their own project directory on the server.
 
-To run as a background service (systemd example):
+> **Docker note:** Replace `localhost` with the host IP or `host.docker.internal` if OpenWebUI runs in Docker.
+
+#### Typical multi-user setup
+
+```
+Server machine (runs lsp-mcp-server):
+  /srv/projects/
+    alice/myapp/    ← git clone / sshfs / nfs mount
+    bob/hisapp/
+    shared/libfoo/
+
+Alice's OpenWebUI → http://server:3100/mcp?project=/srv/projects/alice/myapp
+Bob's OpenWebUI   → http://server:3100/mcp?project=/srv/projects/bob/hisapp
+```
+
+The server automatically starts a separate LSP process for each project and keeps it alive across requests.
+
+#### Run as a background service (systemd)
 
 ```ini
 # /etc/systemd/system/lsp-mcp.service
@@ -183,7 +201,7 @@ To run as a background service (systemd example):
 Description=LSP-MCP Server for OpenWebUI
 
 [Service]
-ExecStart=node /absolute/path/to/lsp-mcp-server/dist/index.js --project /path/to/project --port 3100
+ExecStart=node /absolute/path/to/lsp-mcp-server/dist/index.js --port 3100
 Restart=always
 Environment=LSP_MCP_DEBUG=0
 
@@ -327,7 +345,10 @@ Pyright automatically reads `pyrightconfig.json` and `pyproject.toml`. For virtu
 ## CLI
 
 ```
---project, -p <path>    Path to the project root (required)
+--project, -p <path>    Path to the project root
+                        Required in stdio mode.
+                        Optional in HTTP mode — becomes the default project
+                        when no ?project= query parameter is given.
 --port, -P <number>     HTTP port for OpenWebUI / remote MCP clients
                         (omit to use stdio — default for Claude Code)
 --help, -h              Show help and exit
@@ -337,9 +358,20 @@ Pyright automatically reads `pyrightconfig.json` and `pyproject.toml`. For virtu
 
 | Variable | Description |
 |---|---|
-| `LSP_PROJECT_ROOT` | Project path (if `--project` is not set) |
+| `LSP_PROJECT_ROOT` | Default project path (if `--project` is not set) |
 | `LSP_MCP_PORT` | HTTP port (if `--port` is not set) |
 | `LSP_MCP_DEBUG=1` | Print language server stderr to stdout |
+
+## HTTP Multi-Project API
+
+In HTTP mode each request can target a different project:
+
+| Method | URL | Description |
+|---|---|---|
+| `POST/GET` | `/mcp?project=/path/to/project` | MCP endpoint for a specific project |
+| `POST/GET` | `/mcp` | MCP endpoint using the default project (`--project`) |
+
+The project can also be passed via the `X-Project-Root` request header instead of the query parameter.
 
 ## Troubleshooting
 
