@@ -50,6 +50,17 @@ export class ServerPool {
     return client;
   }
 
+  /** Collect diagnostics from all running LSP clients */
+  getAllDiagnostics(): { serverName: string; uri: string; diagnostics: import("vscode-languageserver-protocol").Diagnostic[] }[] {
+    const result = [];
+    for (const [name, client] of this.clients) {
+      for (const entry of client.getAllDiagnostics()) {
+        result.push({ serverName: name, ...entry });
+      }
+    }
+    return result;
+  }
+
   /** List all running servers */
   getRunningServers(): { name: string; running: boolean }[] {
     return [...this.clients.entries()].map(([name, client]) => ({

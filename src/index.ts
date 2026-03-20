@@ -22,6 +22,7 @@ import { LanguageRegistry } from "./language-registry.js";
 import { ServerPool } from "./server-pool.js";
 import {
   formatDiagnostics,
+  formatWorkspaceDiagnostics,
   formatCompletions,
   formatHover,
   formatDefinitions,
@@ -125,24 +126,18 @@ Use BEFORE writing code to check the current state, and AFTER editing to verify 
     }
   );
 
-  // ── Tool: diagnose_code ──────────────────────────────────
+  // ── Tool: diagnose_workspace ─────────────────────────────
 
   server.tool(
-    "diagnose_code",
-    `Check source code for errors WITHOUT saving to disk.
-Pass the full file content and a virtual filename (extension matters for language detection).
-Useful for validating code before writing it. Works with any supported language.`,
-    {
-      file: z.string().describe("Virtual filename, e.g. 'src/widget.cpp' or 'utils.py' — extension determines the language server"),
-      content: z.string().describe("Full source code to check"),
-    },
-    async ({ file, content }) => {
+    "diagnose_workspace",
+    `Get diagnostics for ALL files opened during this session, across all language servers.
+Shows a summary of total errors and warnings, then lists issues per file.
+Use after editing multiple files to see the full picture in one call.`,
+    {},
+    async () => {
       try {
-        const client = await pool.getClient(file);
-        await client.updateDocument(file, content);
-        const result = await client.getDiagnostics(file);
-        const header = `[${client.serverName}] `;
-        return { content: [{ type: "text" as const, text: header + formatDiagnostics(file, result.diagnostics) }] };
+        const entries = pool.getAllDiagnostics();
+        return { content: [{ type: "text" as const, text: formatWorkspaceDiagnostics(entries, projectRoot) }] };
       } catch (e: unknown) {
         return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }

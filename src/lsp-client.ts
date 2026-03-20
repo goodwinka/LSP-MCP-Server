@@ -382,6 +382,11 @@ export class LspClient {
     });
   }
 
+  /** Return all diagnostics currently known for open documents */
+  getAllDiagnostics(): { uri: string; diagnostics: Diagnostic[] }[] {
+    return [...this.diagnosticsStore.entries()].map(([uri, diagnostics]) => ({ uri, diagnostics }));
+  }
+
   get isRunning(): boolean {
     return this.initialized;
   }
