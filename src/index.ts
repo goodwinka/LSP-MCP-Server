@@ -392,20 +392,65 @@ For multi-file projects call this once per file, preserving the original directo
 
   // ── Tool: run_command ────────────────────────────────────
 
+  /**
+   * Allowed build-tool executables. Only these may be the first token.
+   * The command is NOT run through a shell — no pipes, subshells, or redirections.
+   */
+  const ALLOWED_COMMANDS = new Set([
+    "cmake", "make", "ninja", "bear", "meson", "meson.py",
+    "cargo", "go",
+    "pip", "pip3",
+    "npm", "yarn", "pnpm",
+    "cp", "mv", "ln", "mkdir",
+    "autoreconf", "autoconf", "automake", "libtool",
+    "qmake", "qmake6",
+    "./configure",
+  ]);
+
+  /** Very small tokenizer: handles single/double-quoted strings but no expansion. */
+  function tokenize(input: string): string[] {
+    const tokens: string[] = [];
+    let cur = "";
+    let quote: string | null = null;
+    for (const ch of input) {
+      if (quote) {
+        if (ch === quote) { quote = null; }
+        else { cur += ch; }
+      } else if (ch === '"' || ch === "'") {
+        quote = ch;
+      } else if (ch === " " || ch === "\t") {
+        if (cur) { tokens.push(cur); cur = ""; }
+      } else {
+        cur += ch;
+      }
+    }
+    if (cur) tokens.push(cur);
+    return tokens;
+  }
+
   server.tool(
     "run_command",
-    `Run a shell command inside the workspace directory.
-Use this to generate build files needed by LSP servers, for example:
+    `Run a build command inside the workspace directory (NO shell — no pipes or redirections).
+Use this to generate compile_commands.json needed by clangd.
+
+Allowed executables: cmake, make, ninja, bear, meson, cargo, go, pip/pip3,
+npm/yarn/pnpm, cp, mv, ln, mkdir, autoreconf/autoconf, qmake/qmake6, ./configure.
+
+Typical C++/CMake workflow:
   cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -B build .
-  cmake -DCMAKE_CUDA_COMPILER=nvcc -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -B build .
-  bear -- make
-After cmake runs, compile_commands.json will appear in the build directory.
-Copy or symlink it to the workspace root so clangd can find it:
   cp build/compile_commands.json .
-The command runs with a 60-second timeout. stdout and stderr are returned.`,
+
+CUDA variant:
+  cmake -DCMAKE_CUDA_COMPILER=nvcc -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -B build .
+  cp build/compile_commands.json .
+
+make+Bear:
+  bear -- make
+
+Runs with a 60-second timeout. Returns combined stdout+stderr.`,
     {
       workspace_id: z.string().describe("Workspace ID returned by create_workspace"),
-      command: z.string().describe("Shell command to run, e.g. 'cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -B build .'"),
+      command: z.string().describe("Build command, e.g. 'cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -B build .'"),
     },
     async ({ workspace_id, command }) => {
       const ws = manager.get(workspace_id);
@@ -415,11 +460,28 @@ The command runs with a 60-second timeout. stdout and stderr are returned.`,
           isError: true,
         };
       }
+
+      const argv = tokenize(command);
+      if (argv.length === 0) {
+        return { content: [{ type: "text" as const, text: "Empty command." }], isError: true };
+      }
+      const exe = argv[0];
+      if (!ALLOWED_COMMANDS.has(exe)) {
+        return {
+          content: [{
+            type: "text" as const,
+            text: `Command '${exe}' is not allowed.\nAllowed: ${[...ALLOWED_COMMANDS].join(", ")}`,
+          }],
+          isError: true,
+        };
+      }
+
       try {
         const output = await new Promise<string>((resolve, reject) => {
-          const proc = spawn("sh", ["-c", command], {
+          const proc = spawn(exe, argv.slice(1), {
             cwd: ws.projectRoot,
             timeout: 60_000,
+            env: { ...process.env },
           });
           const chunks: Buffer[] = [];
           proc.stdout.on("data", (d: Buffer) => chunks.push(d));
