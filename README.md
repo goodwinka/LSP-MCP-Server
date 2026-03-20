@@ -28,7 +28,7 @@ The server **automatically selects** the right LSP by file extension. Open a `.c
 ```
 Claude Code  ──(MCP/stdio)──►  lsp-mcp-server  ──(LSP/JSON-RPC)──►  clangd
                                        │                              pyright
-                                       │                              tsserver
+OpenWebUI    ──(MCP/HTTP) ──►          │                              tsserver
                                        └── ServerPool ──────────────► gopls
                                             (lazy start,               rust-analyzer
                                              one per language)         ...
@@ -100,7 +100,7 @@ brew install lua-language-server         # macOS
 
 Use the `list_servers` tool to see what is installed.
 
-### 3. Connect to Claude Code
+### 3. Connect to Claude Code or OpenWebUI
 
 **Option A: Project config** (`.mcp.json` in the project root)
 
@@ -146,6 +146,53 @@ Use the `list_servers` tool to see what is installed.
     }
   }
 }
+```
+
+### 4. Connect to OpenWebUI
+
+OpenWebUI requires an HTTP endpoint. Start the server with `--port`:
+
+```bash
+node /absolute/path/to/lsp-mcp-server/dist/index.js \
+  --project /path/to/your/project \
+  --port 3100
+```
+
+Or with environment variables:
+
+```bash
+LSP_PROJECT_ROOT=/path/to/your/project LSP_MCP_PORT=3100 \
+  node /absolute/path/to/lsp-mcp-server/dist/index.js
+```
+
+Then in OpenWebUI:
+
+1. Open **Settings → Tools** (or **Admin Panel → Tools**)
+2. Click **Add Tool Server** (or the **+** button)
+3. Set the URL to `http://localhost:3100/mcp`
+4. Save — the 8 IntelliSense tools will appear automatically
+
+> **Note:** The server must be running on a machine that OpenWebUI can reach.
+> For Docker deployments use the host IP instead of `localhost`, e.g. `http://host.docker.internal:3100/mcp`.
+
+To run as a background service (systemd example):
+
+```ini
+# /etc/systemd/system/lsp-mcp.service
+[Unit]
+Description=LSP-MCP Server for OpenWebUI
+
+[Service]
+ExecStart=node /absolute/path/to/lsp-mcp-server/dist/index.js --project /path/to/project --port 3100
+Restart=always
+Environment=LSP_MCP_DEBUG=0
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl enable --now lsp-mcp
 ```
 
 ## Available Tools
@@ -281,6 +328,8 @@ Pyright automatically reads `pyrightconfig.json` and `pyproject.toml`. For virtu
 
 ```
 --project, -p <path>    Path to the project root (required)
+--port, -P <number>     HTTP port for OpenWebUI / remote MCP clients
+                        (omit to use stdio — default for Claude Code)
 --help, -h              Show help and exit
 ```
 
@@ -289,6 +338,7 @@ Pyright automatically reads `pyrightconfig.json` and `pyproject.toml`. For virtu
 | Variable | Description |
 |---|---|
 | `LSP_PROJECT_ROOT` | Project path (if `--project` is not set) |
+| `LSP_MCP_PORT` | HTTP port (if `--port` is not set) |
 | `LSP_MCP_DEBUG=1` | Print language server stderr to stdout |
 
 ## Troubleshooting

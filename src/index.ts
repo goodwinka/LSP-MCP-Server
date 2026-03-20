@@ -15,9 +15,11 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 import { resolve } from "node:path";
 import { existsSync } from "node:fs";
+import { createServer } from "node:http";
 import { LanguageRegistry } from "./language-registry.js";
 import { ServerPool } from "./server-pool.js";
 import {
@@ -41,6 +43,7 @@ function errorMessage(e: unknown): string {
 function parseArgs() {
   const args = process.argv.slice(2);
   let projectRoot = process.env.LSP_PROJECT_ROOT ?? "";
+  let port: number | undefined = process.env.LSP_MCP_PORT ? parseInt(process.env.LSP_MCP_PORT, 10) : undefined;
 
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
@@ -51,6 +54,18 @@ function parseArgs() {
           process.exit(1);
         }
         projectRoot = args[++i];
+        break;
+      case "--port":
+      case "-P":
+        if (i + 1 >= args.length) {
+          console.error("Error: --port requires a port number.");
+          process.exit(1);
+        }
+        port = parseInt(args[++i], 10);
+        if (isNaN(port) || port < 1 || port > 65535) {
+          console.error("Error: --port must be a valid port number (1-65535).");
+          process.exit(1);
+        }
         break;
       case "--help":
       case "-h":
@@ -63,9 +78,12 @@ Zig, CSS, HTML, JSON, and more — auto-detected by file extension.
 
 Options:
   --project, -p <path>    Path to project root (required)
+  --port, -P <number>     Start HTTP server on this port (for OpenWebUI / remote MCP clients)
+                          If omitted, uses stdio transport (default for Claude Code)
 
 Environment variables:
   LSP_PROJECT_ROOT        Project root (fallback if --project not given)
+  LSP_MCP_PORT            HTTP port (fallback if --port not given)
   LSP_MCP_DEBUG=1         Print language server stderr to console
 `);
         process.exit(0);
@@ -87,13 +105,13 @@ Environment variables:
     process.exit(1);
   }
 
-  return { projectRoot: resolved };
+  return { projectRoot: resolved, port };
 }
 
 // ── Main ─────────────────────────────────────────────────────
 
 async function main() {
-  const { projectRoot } = parseArgs();
+  const { projectRoot, port } = parseArgs();
 
   const registry = new LanguageRegistry();
   const pool = new ServerPool(projectRoot, registry);
@@ -299,15 +317,39 @@ Also shows which servers are currently running.`,
 
   // ── Start server ─────────────────────────────────────────
 
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-
   const shutdown = async () => {
     await pool.stopAll();
     process.exit(0);
   };
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
+
+  if (port !== undefined) {
+    // HTTP mode — for OpenWebUI and other remote MCP clients
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined, // stateless
+    });
+
+    const httpServer = createServer(async (req, res) => {
+      if (req.url === "/mcp" || req.url === "/") {
+        await transport.handleRequest(req, res);
+      } else {
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end("Not found. MCP endpoint is at /mcp");
+      }
+    });
+
+    await server.connect(transport);
+
+    httpServer.listen(port, () => {
+      process.stderr.write(`LSP-MCP Server listening on http://0.0.0.0:${port}/mcp\n`);
+      process.stderr.write(`Project: ${projectRoot}\n`);
+    });
+  } else {
+    // stdio mode — default, for Claude Code and local MCP clients
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+  }
 }
 
 main().catch((err) => {
