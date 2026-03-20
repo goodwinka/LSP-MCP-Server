@@ -148,52 +148,17 @@ Use the `list_servers` tool to see what is installed.
 }
 ```
 
-### 4. Connect to OpenWebUI (multi-user HTTP mode)
+### 4. Connect to OpenWebUI (HTTP workspace mode)
 
-OpenWebUI requires an HTTP endpoint. The server supports multiple users simultaneously — each user specifies their own project path in the URL.
+In HTTP mode no server-side project setup is needed. Each user uploads their own files through the AI conversation — the server creates isolated temporary workspaces automatically.
 
-**Important:** The source code must be accessible on the machine running lsp-mcp-server (via local disk, NFS, sshfs, git clone, etc.). The server runs LSP processes locally — it cannot access files on client machines.
-
-#### Start the server
+#### Start the server (one-time, by admin)
 
 ```bash
-# No default project — every client must provide ?project=
 node /absolute/path/to/lsp-mcp-server/dist/index.js --port 3100
-
-# With a default project (used when no ?project= is given)
-node /absolute/path/to/lsp-mcp-server/dist/index.js --port 3100 --project /srv/projects/shared
 ```
 
-#### Connect each user in OpenWebUI
-
-1. Open **Settings → Tools** (or **Admin Panel → Tools**)
-2. Click **Add Tool Server** (or the **+** button)
-3. Set the URL with **your** project path:
-   ```
-   http://your-server:3100/mcp?project=/srv/projects/alice/myapp
-   ```
-4. Save — the 8 IntelliSense tools will appear automatically
-
-Each user connects with their own URL pointing to their own project directory on the server.
-
-> **Docker note:** Replace `localhost` with the host IP or `host.docker.internal` if OpenWebUI runs in Docker.
-
-#### Typical multi-user setup
-
-```
-Server machine (runs lsp-mcp-server):
-  /srv/projects/
-    alice/myapp/    ← git clone / sshfs / nfs mount
-    bob/hisapp/
-    shared/libfoo/
-
-Alice's OpenWebUI → http://server:3100/mcp?project=/srv/projects/alice/myapp
-Bob's OpenWebUI   → http://server:3100/mcp?project=/srv/projects/bob/hisapp
-```
-
-The server automatically starts a separate LSP process for each project and keeps it alive across requests.
-
-#### Run as a background service (systemd)
+As a systemd service:
 
 ```ini
 # /etc/systemd/system/lsp-mcp.service
@@ -203,7 +168,6 @@ Description=LSP-MCP Server for OpenWebUI
 [Service]
 ExecStart=node /absolute/path/to/lsp-mcp-server/dist/index.js --port 3100
 Restart=always
-Environment=LSP_MCP_DEBUG=0
 
 [Install]
 WantedBy=multi-user.target
@@ -213,18 +177,62 @@ WantedBy=multi-user.target
 sudo systemctl enable --now lsp-mcp
 ```
 
+#### Connect in OpenWebUI (every user, same URL)
+
+1. Open **Settings → Tools**
+2. Click **Add Tool Server**
+3. Enter: `http://your-server:3100/mcp`
+4. Save
+
+> **Docker note:** Use `host.docker.internal` instead of `localhost` if OpenWebUI runs in Docker.
+
+#### Typical workflow in chat
+
+The AI handles everything automatically — no manual steps required:
+
+```
+User: Check this Python code for errors:
+      [paste code]
+
+AI: → create_workspace()           # creates isolated temp dir
+    → write_file("main.py", ...)   # uploads the code
+    → diagnose_file("main.py")     # runs pyright/pylsp
+    → reports errors and suggestions
+```
+
+For multi-file projects the AI uploads all files preserving the directory structure before running analysis.
+
+Workspaces are automatically deleted after 1 hour of inactivity (configurable via `LSP_MCP_WS_TTL_HOURS`).
+
 ## Available Tools
 
-| Tool | Description |
-|---|---|
-| `diagnose_file` | Compiler errors/warnings for a file on disk |
-| `diagnose_workspace` | Errors/warnings for all files opened in the current session, across all language servers |
-| `get_completions` | Completions at a given position |
-| `get_hover` | Type and documentation for a symbol |
-| `get_definitions` | Jump to symbol definition |
-| `find_references` | Find all usages of a symbol in the project |
-| `get_symbols` | Symbol tree for a file |
-| `list_servers` | Show all languages, server status (installed / running) |
+### HTTP mode (workspace-based)
+
+| Tool | Key parameters | Description |
+|---|---|---|
+| `create_workspace` | — | Create a temp workspace, returns `workspace_id` |
+| `write_file` | `workspace_id`, `path`, `content` | Upload a source file to the workspace |
+| `diagnose_file` | `workspace_id`, `file` | Compiler errors/warnings for a file |
+| `diagnose_workspace` | `workspace_id` | Errors/warnings across all opened files |
+| `get_completions` | `workspace_id`, `file`, `line`, `character` | Completions at a position |
+| `get_hover` | `workspace_id`, `file`, `line`, `character` | Type and docs for a symbol |
+| `get_definitions` | `workspace_id`, `file`, `line`, `character` | Jump to definition |
+| `find_references` | `workspace_id`, `file`, `line`, `character` | Find all usages |
+| `get_symbols` | `workspace_id`, `file` | Symbol tree for a file |
+| `list_servers` | — | Show installed language servers |
+
+### stdio mode (Claude Code, single project)
+
+| Tool | Key parameters | Description |
+|---|---|---|
+| `diagnose_file` | `file` | Compiler errors/warnings for a file |
+| `diagnose_workspace` | — | Errors/warnings across all opened files |
+| `get_completions` | `file`, `line`, `character` | Completions at a position |
+| `get_hover` | `file`, `line`, `character` | Type and docs for a symbol |
+| `get_definitions` | `file`, `line`, `character` | Jump to definition |
+| `find_references` | `file`, `line`, `character` | Find all usages |
+| `get_symbols` | `file` | Symbol tree for a file |
+| `list_servers` | — | Show installed language servers |
 
 ### diagnose_workspace
 
@@ -358,20 +366,10 @@ Pyright automatically reads `pyrightconfig.json` and `pyproject.toml`. For virtu
 
 | Variable | Description |
 |---|---|
-| `LSP_PROJECT_ROOT` | Default project path (if `--project` is not set) |
+| `LSP_PROJECT_ROOT` | Default project path (stdio mode) |
 | `LSP_MCP_PORT` | HTTP port (if `--port` is not set) |
+| `LSP_MCP_WS_TTL_HOURS` | Workspace TTL in hours (default: `1`) |
 | `LSP_MCP_DEBUG=1` | Print language server stderr to stdout |
-
-## HTTP Multi-Project API
-
-In HTTP mode each request can target a different project:
-
-| Method | URL | Description |
-|---|---|---|
-| `POST/GET` | `/mcp?project=/path/to/project` | MCP endpoint for a specific project |
-| `POST/GET` | `/mcp` | MCP endpoint using the default project (`--project`) |
-
-The project can also be passed via the `X-Project-Root` request header instead of the query parameter.
 
 ## Troubleshooting
 
