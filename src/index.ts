@@ -194,6 +194,110 @@ function buildHttpMcpServer(manager: WorkspaceManager, registry: LanguageRegistr
 
   const ttlHours = Number(process.env.LSP_MCP_WS_TTL_HOURS ?? "1");
 
+  // ── Tool: get_workspace_guide ────────────────────────────
+
+  server.tool(
+    "get_workspace_guide",
+    `Get setup instructions for using LSP IntelliSense in the current session.
+Call this at the start of a new session or whenever you need guidance on:
+- the correct workflow (create workspace → write files → analyse)
+- language-specific setup (C/C++/CUDA: .clangd config, Python: venv, etc.)
+- which tools to use and when`,
+    {},
+    async () => {
+      return {
+        content: [{
+          type: "text" as const,
+          text: `# LSP IntelliSense — Workspace Guide
+
+## Workflow
+
+1. Call \`create_workspace\` → get \`workspace_id\`
+2. Call \`write_file\` for every source file (preserve directory structure)
+3. For C/C++/CUDA projects: write a \`.clangd\` config file (see below)
+4. Call \`diagnose_file\` or other analysis tools
+
+## When to use which tool
+
+| Situation | Tool |
+|---|---|
+| Check a file for errors | \`diagnose_file\` |
+| Check all uploaded files | \`diagnose_workspace\` |
+| Before writing code — check API | \`get_hover\`, \`get_completions\` |
+| After multi-file changes | \`diagnose_workspace\` |
+| Refactoring — find all usages | \`find_references\` |
+| Overview of a file's structure | \`get_symbols\` |
+
+## C / C++ / Qt projects
+
+clangd requires a \`.clangd\` config file in the workspace root.
+Write it with \`write_file\` before running any analysis.
+
+Standard C++17 with Qt6:
+\`\`\`yaml
+CompileFlags:
+  Add:
+    - -std=c++17
+    - -I/usr/include/qt6
+    - -I/usr/include/qt6/QtCore
+    - -I/usr/include/qt6/QtWidgets
+    - -I/usr/include/qt6/QtGui
+    - -fPIC
+\`\`\`
+
+Plain C++17 (no Qt):
+\`\`\`yaml
+CompileFlags:
+  Add:
+    - -std=c++17
+\`\`\`
+
+**Important for mixed C/C++ projects** (files with both .c and .cpp):
+do NOT add \`-std=c++17\` — it breaks C files. Ask the user for their
+compiler flags or use a minimal config without language-standard flags.
+
+## CUDA projects (.cu / .cuh)
+
+CUDA Toolkit must be installed on the server (\`nvcc\` in PATH).
+
+\`\`\`yaml
+CompileFlags:
+  Add:
+    - --cuda-gpu-arch=sm_75
+    - --cuda-path=/usr/local/cuda
+    - -I/usr/local/cuda/include
+    - -std=c++17
+\`\`\`
+
+Adjust \`sm_75\` to match the user's GPU architecture (sm_60, sm_80, sm_89, etc.).
+If the user doesn't know — use sm_75 as a safe default.
+
+## Python projects
+
+Nothing extra needed. pyright/pylsp work automatically.
+If the user has type stubs or a virtualenv, ask them to paste
+a \`pyrightconfig.json\`:
+\`\`\`json
+{
+  "venvPath": ".",
+  "venv": ".venv"
+}
+\`\`\`
+
+## TypeScript / JavaScript
+
+Nothing extra needed. typescript-language-server works automatically.
+For monorepos, also write the \`tsconfig.json\`.
+
+## Go / Rust
+
+Nothing extra needed. gopls and rust-analyzer work automatically.
+`,
+        }],
+      };
+    }
+  );
+
   // ── Tool: create_workspace ───────────────────────────────
 
   server.tool(
@@ -201,21 +305,27 @@ function buildHttpMcpServer(manager: WorkspaceManager, registry: LanguageRegistr
     `Create a temporary workspace on the server for your project files.
 Returns a workspace_id that must be passed to all other tools.
 The workspace is automatically deleted after ${ttlHours} hour(s) of inactivity.
-Call this once at the start of a session, then use write_file to upload your sources.`,
+
+Typical session start:
+1. Call create_workspace → get workspace_id
+2. For C/C++/CUDA projects: call get_workspace_guide for .clangd setup instructions
+3. Use write_file to upload source files (and .clangd if needed)
+4. Run diagnose_file / get_hover / etc.`,
     {},
     async () => {
       try {
         const ws = manager.create();
-        const expiresIn = `${ttlHours}h of inactivity`;
         return {
           content: [{
             type: "text" as const,
             text: [
               `Workspace created successfully.`,
               `workspace_id: ${ws.id}`,
-              `Auto-expires after: ${expiresIn}`,
+              `Auto-expires after: ${ttlHours}h of inactivity`,
               ``,
-              `Next step: use write_file to upload your source files, then run diagnose_file or other analysis tools.`,
+              `Next steps:`,
+              `• C/C++/CUDA project → call get_workspace_guide for language-specific setup`,
+              `• Other languages   → use write_file to upload sources, then analyse`,
             ].join("\n"),
           }],
         };

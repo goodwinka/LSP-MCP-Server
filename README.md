@@ -191,12 +191,22 @@ sudo systemctl enable --now lsp-mcp
 The AI handles everything automatically — no manual steps required:
 
 ```
-User: Check this Python code for errors:
-      [paste code]
+User: Check this Python code for errors: [paste code]
 
-AI: → create_workspace()           # creates isolated temp dir
-    → write_file("main.py", ...)   # uploads the code
-    → diagnose_file("main.py")     # runs pyright/pylsp
+AI: → create_workspace()             # creates isolated temp dir
+    → write_file("main.py", ...)     # uploads the code
+    → diagnose_file("main.py")       # runs pyright/pylsp
+    → reports errors and suggestions
+```
+
+```
+User: Check this C++ Qt code: [paste code]
+
+AI: → create_workspace()             # creates isolated temp dir
+    → get_workspace_guide()          # reads C++ setup instructions
+    → write_file(".clangd", ...)     # writes clangd config with Qt includes
+    → write_file("main.cpp", ...)    # uploads the source
+    → diagnose_file("main.cpp")      # runs clangd
     → reports errors and suggestions
 ```
 
@@ -210,6 +220,7 @@ Workspaces are automatically deleted after 1 hour of inactivity (configurable vi
 
 | Tool | Key parameters | Description |
 |---|---|---|
+| `get_workspace_guide` | — | Setup instructions and language-specific tips (call at session start) |
 | `create_workspace` | — | Create a temp workspace, returns `workspace_id` |
 | `write_file` | `workspace_id`, `path`, `content` | Upload a source file to the workspace |
 | `diagnose_file` | `workspace_id`, `file` | Compiler errors/warnings for a file |
