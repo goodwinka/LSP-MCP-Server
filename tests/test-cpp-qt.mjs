@@ -141,7 +141,7 @@ async function run() {
     console.log("2. Tool listing");
     const { tools } = await client.send("tools/list", {});
     const names = tools.map(t => t.name);
-    for (const expected of ["diagnose_file", "diagnose_code", "get_completions", "get_hover", "get_definitions", "find_references", "get_symbols", "list_servers"]) {
+    for (const expected of ["diagnose_file", "diagnose_workspace", "get_completions", "get_hover", "get_definitions", "find_references", "get_symbols", "list_servers"]) {
       assert(names.includes(expected), `tool "${expected}" present`);
     }
     console.log();
@@ -185,36 +185,12 @@ async function run() {
     assert(sym.includes("Q_OBJECT") || sym.includes("staticMetaObject"), "Q_OBJECT expansion visible");
     console.log();
 
-    // 8. diagnose_code — virtual file with intentional error
-    console.log("8. diagnose_code — error detection in virtual Qt5 file");
-    const badCode = [
-      "#include <QWidget>",
-      "int main() {",
-      "    QWidget *w = nullptr;",
-      "    w->nonExistentQtMethod();",
-      "    return 0;",
-      "}",
-    ].join("\n");
-    const errDiag = await callTool(client, "diagnose_code", { file: "virtual_test.cpp", content: badCode });
-    assert(errDiag.includes("nonExistentQtMethod"), "nonExistentQtMethod error reported");
-    assert(errDiag.toUpperCase().includes("ERROR"), "severity ERROR present");
-    console.log(`   ${errDiag.split("\n").find(l => l.includes("ERROR")) || ""}`);
-    console.log();
-
-    // 9. diagnose_code — valid Qt5 code, no errors
-    console.log("9. diagnose_code — valid Qt5 code");
-    const goodCode = [
-      "#include <QCoreApplication>",
-      "#include <QString>",
-      "int main(int argc, char *argv[]) {",
-      "    QCoreApplication app(argc, argv);",
-      "    QString s = QStringLiteral(\"hello\");",
-      "    return 0;",
-      "}",
-    ].join("\n");
-    const okDiag = await callTool(client, "diagnose_code", { file: "valid_qt.cpp", content: goodCode });
-    assert(okDiag.includes("[clangd]"), "clangd processed virtual file");
-    assert(!/ ERROR /i.test(okDiag) && !okDiag.match(/^\s*ERROR\b/m), "no errors in valid Qt5 code");
+    // 8. diagnose_workspace — after diagnosing 3 clean files
+    console.log("8. diagnose_workspace — all open files clean");
+    const ws = await callTool(client, "diagnose_workspace", {});
+    assert(ws.includes("✅") || ws.includes("clean") || ws.includes("0 error"), "workspace shows clean state");
+    assert(ws.includes("file(s)"), "workspace reports file count");
+    console.log(`   ${ws.split("\n")[0]}`);
     console.log();
 
   } finally {

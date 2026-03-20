@@ -38,6 +38,36 @@ export function formatDiagnostics(file: string, diags: Diagnostic[]): string {
   return `Found ${diags.length} diagnostic(s) in ${file}:\n\n${lines.join("\n")}`;
 }
 
+export function formatWorkspaceDiagnostics(
+  entries: { uri: string; diagnostics: Diagnostic[] }[],
+  projectRoot: string
+): string {
+  // Drop files with no diagnostics for a clean summary
+  const withIssues = entries.filter((e) => e.diagnostics.length > 0);
+
+  const totalErrors = entries.reduce(
+    (n, e) => n + e.diagnostics.filter((d) => d.severity === DiagnosticSeverity.Error).length, 0
+  );
+  const totalWarnings = entries.reduce(
+    (n, e) => n + e.diagnostics.filter((d) => d.severity === DiagnosticSeverity.Warning).length, 0
+  );
+
+  const checkedCount = entries.length;
+
+  if (withIssues.length === 0) {
+    return `✅ Workspace clean — ${checkedCount} file(s) checked, no errors or warnings`;
+  }
+
+  const fileSections = withIssues.map((e) => {
+    let rel: string;
+    try { rel = relative(projectRoot, fileURLToPath(e.uri)); } catch { rel = e.uri; }
+    return formatDiagnostics(rel, e.diagnostics);
+  });
+
+  const header = `Found ${totalErrors} error(s), ${totalWarnings} warning(s) across ${withIssues.length}/${checkedCount} file(s):\n`;
+  return header + "\n" + fileSections.join("\n\n");
+}
+
 // ── Completions ──────────────────────────────────────────────
 
 const completionKindLabel = (k?: CompletionItemKind): string => {
