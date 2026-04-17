@@ -21,6 +21,9 @@ After creating it, tell the user: "File .mcp.json created. Restart Claude Code
 If `.mcp.json` already exists and the `intellisense` server is available in the
 MCP tools list — use its tools when working with code (see below).
 
+Run `list_servers` once at the start of a session to confirm which language
+servers are installed and running.
+
 ## Workflow When Working with Code
 
 ### When writing or modifying code:
@@ -32,6 +35,8 @@ MCP tools list — use its tools when working with code (see below).
    across all opened files in one call.
 4. **When refactoring** — use `find_references` to find all usages of a symbol
    before renaming or deleting it.
+5. **When exploring a file** — use `get_symbols` to get an overview of its
+   structure (classes, functions, variables) before reading line by line.
 
 ### Available IntelliSense tools:
 
@@ -39,12 +44,12 @@ MCP tools list — use its tools when working with code (see below).
 |---|---|
 | `diagnose_file` | Errors and warnings for a file on disk |
 | `diagnose_workspace` | Errors/warnings for all files opened this session |
-| `get_completions` | Autocomplete at a position (functions, methods, variables) |
+| `get_completions` | Autocomplete at a position (0-based line/character) |
 | `get_hover` | Type and documentation for a symbol |
 | `get_definitions` | Go to definition |
 | `find_references` | All usages of a symbol in the project |
 | `get_symbols` | File structure (classes, functions, variables) |
-| `list_servers` | Status of language servers |
+| `list_servers` | Status of all language servers |
 
 ## C / C++ / Qt Projects
 
@@ -107,8 +112,35 @@ as usual; pyright supports them automatically.
 ## Python Projects
 
 Pyright automatically reads `pyrightconfig.json` and `pyproject.toml`.
-For virtual environments, make sure the `venv` is activated or the path is
-set in the config.
+For virtual environments, make sure the `venv` is activated or set the
+interpreter path in `pyrightconfig.json`:
+
+```json
+{
+  "venvPath": ".",
+  "venv": ".venv"
+}
+```
+
+## TypeScript / JavaScript Projects
+
+`typescript-language-server` uses the project's local `typescript` from
+`node_modules` if present, falling back to the global install. Make sure
+`tsconfig.json` is in the project root.
+
+```bash
+npm install -g typescript-language-server typescript
+```
+
+## Rust / Go Projects
+
+Both `rust-analyzer` and `gopls` work out of the box with no project-level
+configuration. Just make sure the binary is in PATH:
+
+```bash
+rustup component add rust-analyzer   # Rust
+go install golang.org/x/tools/gopls@latest  # Go
+```
 
 ## Example Queries
 
@@ -130,6 +162,9 @@ Check models/train.py for errors (CuPy / Numba)
 
 Show the symbol tree of a file
   → get_symbols("src/mainwindow.cpp")
+
+Find all usages of MyClass before renaming
+  → find_references on a .cpp file at the class name
 
 What servers are running?
   → list_servers
