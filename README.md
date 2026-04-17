@@ -34,6 +34,8 @@ Claude Code  ──(MCP/stdio)──►  lsp-mcp-server  ──(LSP/JSON-RPC)─
                                              one per language)         ...
 ```
 
+Language servers start **lazily** — only when the first file of that type is requested. Clients are cached and reused across all tool calls within a session.
+
 The LLM can:
 1. **Before writing** — query function signatures via `get_completions` and `get_hover`
 2. **After writing** — run `diagnose_file` or `diagnose_workspace` to see errors
@@ -41,7 +43,19 @@ The LLM can:
 
 ## Installation
 
-### 1. Build the server
+### Option A: Automated setup (recommended)
+
+```bash
+git clone https://github.com/goodwinka/lsp-mcp-server
+cd lsp-mcp-server
+bash install.sh
+```
+
+The script builds the server, checks which language servers are installed, and generates an `.mcp.json` for the current project.
+
+### Option B: Manual setup
+
+#### 1. Build the server
 
 ```bash
 cd lsp-mcp-server
@@ -51,16 +65,16 @@ npm run build      # compile TypeScript → dist/
 npm run dev        # run directly via tsx
 ```
 
-### 2. Install the language servers you need
+#### 2. Install the language servers you need
 
 Install only the ones relevant to your project:
 
 ```bash
 # C++ / Qt
-sudo apt install clangd-18          # or: brew install llvm
+sudo apt install clangd          # or: brew install llvm
 
 # Python
-npm install -g pyright               # or: pip install pyright
+npm install -g pyright           # or: pip install pyright
 
 # TypeScript / JavaScript
 npm install -g typescript-language-server typescript
@@ -98,9 +112,9 @@ brew install lua-language-server         # macOS
 # Make sure `zls` is available in PATH
 ```
 
-Use the `list_servers` tool to see what is installed.
+Use the `list_servers` tool to see what is installed on your system.
 
-### 3. Connect to Claude Code
+#### 3. Connect to Claude Code
 
 **Option A: Project config** (`.mcp.json` in the project root)
 
@@ -154,12 +168,12 @@ Use the `list_servers` tool to see what is installed.
 |---|---|
 | `diagnose_file` | Compiler errors/warnings for a file on disk |
 | `diagnose_workspace` | Errors/warnings for all files opened in the current session, across all language servers |
-| `get_completions` | Completions at a given position |
+| `get_completions` | Completions at a given position (0-based line/character) |
 | `get_hover` | Type and documentation for a symbol |
 | `get_definitions` | Jump to symbol definition |
 | `find_references` | Find all usages of a symbol in the project |
-| `get_symbols` | Symbol tree for a file |
-| `list_servers` | Show all languages, server status (installed / running) |
+| `get_symbols` | Symbol tree for a file (classes, functions, variables…) |
+| `list_servers` | Show all languages, server status (running / installed / missing) |
 
 ### diagnose_workspace
 
@@ -226,6 +240,8 @@ CompileFlags:
 EOF
 ```
 
+**Mixed C/C++ projects**: the `-std=c++17` flag in `.clangd` is incompatible with plain `.c` files. For projects that mix `.c` and `.cpp`, use `compile_commands.json` instead.
+
 ## Tips for CUDA
 
 ### CUDA C++ (.cu, .cuh)
@@ -255,6 +271,8 @@ CompileFlags:
     - -std=c++17
 ```
 
+Without CUDA Toolkit, clangd will report `Cannot find CUDA installation`. Install the toolkit to fix it.
+
 ### CUDA Python (CuPy, Numba, PyCUDA)
 
 Python CUDA libraries work through the standard pyright — no special setup needed.
@@ -275,7 +293,26 @@ Pyright will automatically pick up types from installed packages.
 
 ## Tips for Python
 
-Pyright automatically reads `pyrightconfig.json` and `pyproject.toml`. For virtual environments, either activate the `venv` before starting, or specify the path in the config.
+Pyright automatically reads `pyrightconfig.json` and `pyproject.toml`. For virtual environments, either activate the `venv` before starting, or specify the interpreter path in the config:
+
+```json
+{
+  "venvPath": ".",
+  "venv": ".venv"
+}
+```
+
+If both `pyright` and `pylsp` are installed, **pyright** is used (it is listed first in the registry). To use pylsp instead, remove or rename `pyright-langserver`.
+
+## Tips for TypeScript / JavaScript
+
+`typescript-language-server` uses the TypeScript compiler from the project's `node_modules` if available, or falls back to a globally installed `typescript`.
+
+```bash
+npm install -g typescript-language-server typescript
+```
+
+For monorepos or projects with `tsconfig.json` outside the root, configure `tsconfig.json` paths appropriately — tsserver picks it up automatically.
 
 ## CLI
 
