@@ -15,8 +15,7 @@ If `.mcp.json` does not exist in the project root, create it:
 }
 ```
 
-After creating it, tell the user: "File .mcp.json created. Restart Claude Code
-(or run /mcp restart) to connect LSP IntelliSense."
+After creating it, tell the user: "File .mcp.json created. Run '/mcp restart' to connect LSP IntelliSense."
 
 If `.mcp.json` already exists and the `intellisense` server is available in the
 MCP tools list — use its tools when working with code (see below).
